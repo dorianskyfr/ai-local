@@ -1,14 +1,49 @@
 /*
- * Trainer — accès internet du modèle : récupération de textes sur Wikipédia
- * (français) pour l'entraînement, sur un sujet précis ou au hasard.
- * En cas d'absence de connexion, l'appelant se replie sur
- * l'auto-entraînement local.
+ * Trainer — accès internet du modèle, multi-sources.
+ *
+ * Sources fiables interrogées EN PARALLÈLE pour accélérer l'apprentissage :
+ *  - encyclopédies MediaWiki : Wikipédia, Vikidia, Wikinews, Wiktionnaire, Wikisource ;
+ *  - actualités : flux RSS de grands médias français ;
+ *  - YouTube : sous-titres d'une vidéo dont on colle le lien en sujet.
+ *
+ * Les requêtes qui exigent de contourner CORS (RSS, YouTube) passent par le
+ * processus principal Electron (window.native.fetchText) ; en son absence
+ * (tests navigateur), on retombe sur fetch directement.
  */
 
-const WIKI_API = 'https://fr.wikipedia.org/w/api.php';
+const MEDIAWIKI_SOURCES = {
+  wikipedia:  { label: 'Wikipédia',   api: 'https://fr.wikipedia.org/w/api.php' },
+  vikidia:    { label: 'Vikidia',     api: 'https://fr.vikidia.org/w/api.php' },
+  wikinews:   { label: 'Wikinews',    api: 'https://fr.wikinews.org/w/api.php' },
+  wiktionary: { label: 'Wiktionnaire', api: 'https://fr.wiktionary.org/w/api.php' },
+  wikisource: { label: 'Wikisource',  api: 'https://fr.wikisource.org/w/api.php' }
+};
 
-async function wikiQuery(params) {
-  const url = WIKI_API + '?' + new URLSearchParams({
+const RSS_FEEDS = [
+  { name: 'France Info', url: 'https://www.francetvinfo.fr/titres.rss' },
+  { name: 'Le Monde', url: 'https://www.lemonde.fr/rss/une.xml' }
+];
+
+// Ensemble utilisé par le mode « toutes les sources » (le Wiktionnaire et
+// Wikisource sont surtout utiles avec un sujet précis).
+const ALL_SOURCES_RANDOM = ['wikipedia', 'vikidia', 'wikinews', 'rss'];
+const ALL_SOURCES_TOPIC = ['wikipedia', 'vikidia', 'wikinews', 'wiktionary', 'wikisource', 'rss'];
+
+async function nativeFetchText(url) {
+  if (window.native && window.native.fetchText) {
+    const res = await window.native.fetchText(url);
+    if (!res.ok) throw new Error(res.error || ('HTTP ' + res.status));
+    return res.text;
+  }
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.text();
+}
+
+/* ---------- Encyclopédies MediaWiki ---------- */
+
+async function wikiQuery(api, params) {
+  const url = api + '?' + new URLSearchParams({
     format: 'json',
     origin: '*',
     action: 'query',
@@ -31,33 +66,108 @@ function firstPage(data) {
   return null;
 }
 
-/** Article aléatoire avec son texte (sujet libre). */
-async function fetchRandomArticle() {
-  const data = await wikiQuery({
-    generator: 'random',
-    grnnamespace: '0',
-    grnlimit: '3',
-    prop: 'extracts',
-    explaintext: '1',
-    exintro: '1',
-    exlimit: 'max'
-  });
-  return firstPage(data);
+async function fetchFromMediaWiki(sourceKey, topic) {
+  const src = MEDIAWIKI_SOURCES[sourceKey];
+  const params = topic
+    ? { generator: 'search', gsrsearch: topic, gsrlimit: '3', gsrnamespace: '0',
+        prop: 'extracts', explaintext: '1', exintro: '1', exlimit: 'max' }
+    : { generator: 'random', grnnamespace: '0', grnlimit: '3',
+        prop: 'extracts', explaintext: '1', exintro: '1', exlimit: 'max' };
+  const page = firstPage(await wikiQuery(src.api, params));
+  if (!page) return null;
+  return { sourceLabel: src.label, title: page.title, extract: page.extract };
 }
 
-/** Meilleur article sur un sujet donné, avec son texte. */
-async function fetchArticleOnTopic(topic) {
-  const data = await wikiQuery({
-    generator: 'search',
-    gsrsearch: topic,
-    gsrlimit: '3',
-    gsrnamespace: '0',
-    prop: 'extracts',
-    explaintext: '1',
-    exintro: '1',
-    exlimit: 'max'
-  });
-  return firstPage(data);
+/* ---------- Actualités (RSS) ---------- */
+
+function stripHtml(html) {
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  return div.textContent || '';
 }
 
-window.Trainer = { fetchRandomArticle, fetchArticleOnTopic };
+async function fetchFromRSS(topic) {
+  const feed = RSS_FEEDS[Math.floor(Math.random() * RSS_FEEDS.length)];
+  const xml = await nativeFetchText(feed.url);
+  const doc = new DOMParser().parseFromString(xml, 'text/xml');
+  let items = [...doc.querySelectorAll('item')].map(item => ({
+    title: (item.querySelector('title')?.textContent || '').trim(),
+    desc: stripHtml(item.querySelector('description')?.textContent || '').trim()
+  })).filter(i => i.title);
+
+  if (topic) {
+    const t = topic.toLowerCase();
+    const filtered = items.filter(i => (i.title + ' ' + i.desc).toLowerCase().includes(t));
+    if (filtered.length) items = filtered;
+  }
+  if (!items.length) return null;
+
+  const picked = items.slice(0, 6);
+  const extract = picked.map(i => {
+    let s = i.title;
+    if (!/[.!?]$/.test(s)) s += '.';
+    return s + (i.desc ? ' ' + i.desc : '');
+  }).join(' ');
+  return { sourceLabel: feed.name, title: `Actualités ${feed.name}`, extract };
+}
+
+/* ---------- YouTube (sous-titres) ---------- */
+
+function youtubeVideoId(text) {
+  const m = text.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]{11})/);
+  return m ? m[1] : null;
+}
+
+async function fetchFromYouTube(videoUrl) {
+  const id = youtubeVideoId(videoUrl);
+  if (!id) throw new Error('Lien YouTube non reconnu');
+
+  let title = 'Vidéo YouTube';
+  try {
+    const oembed = await nativeFetchText(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${id}&format=json`);
+    title = JSON.parse(oembed).title || title;
+  } catch (e) { /* titre facultatif */ }
+
+  for (const lang of ['fr', 'en']) {
+    try {
+      const xml = await nativeFetchText(`https://video.google.com/timedtext?lang=${lang}&v=${id}`);
+      if (!xml || !xml.includes('<text')) continue;
+      const doc = new DOMParser().parseFromString(xml, 'text/xml');
+      const lines = [...doc.querySelectorAll('text')].map(n => n.textContent.trim()).filter(Boolean);
+      if (!lines.length) continue;
+      return { sourceLabel: 'YouTube', title, extract: lines.join(' ').slice(0, 4000) };
+    } catch (e) { /* essaie la langue suivante */ }
+  }
+  throw new Error('Cette vidéo n\'a pas de sous-titres accessibles');
+}
+
+/* ---------- Récupération en parallèle ---------- */
+
+/**
+ * Interroge plusieurs sources en même temps.
+ * @returns {Promise<{results: Array, errors: Array}>}
+ */
+async function fetchBatch(sourceKeys, topic) {
+  const jobs = sourceKeys.map(key => {
+    if (key === 'rss') return fetchFromRSS(topic);
+    if (key === 'youtube') return fetchFromYouTube(topic);
+    return fetchFromMediaWiki(key, topic);
+  });
+  const settled = await Promise.allSettled(jobs);
+  const results = [];
+  const errors = [];
+  settled.forEach((s, i) => {
+    if (s.status === 'fulfilled' && s.value) results.push(s.value);
+    else if (s.status === 'rejected') errors.push({ source: sourceKeys[i], error: String((s.reason && s.reason.message) || s.reason) });
+  });
+  return { results, errors };
+}
+
+/** Détermine les sources d'un cycle selon le choix de l'utilisateur et le sujet. */
+function resolveSources(choice, topic) {
+  if (youtubeVideoId(topic || '')) return ['youtube'];
+  if (choice === 'all') return topic ? ALL_SOURCES_TOPIC : ALL_SOURCES_RANDOM;
+  return [choice];
+}
+
+window.Trainer = { MEDIAWIKI_SOURCES, fetchBatch, resolveSources, youtubeVideoId };

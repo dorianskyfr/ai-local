@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Local — v0.3</title>
+  <title>AI Local — v0.4</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -15,7 +15,7 @@
         <div class="logo">
           <span class="logo-dot"></span>
           <span class="logo-text">AI Local</span>
-          <span class="version-badge">v0.3</span>
+          <span class="version-badge">v0.4</span>
         </div>
       </div>
 
@@ -44,9 +44,18 @@
         </div>
       </div>
 
+      <div class="sidebar-section share-section">
+        <h3>Modèle partagé</h3>
+        <p id="share-status" class="share-status">Synchronisation…</p>
+        <div class="share-token-row">
+          <input id="github-token" type="password" placeholder="Jeton GitHub (pour publier)">
+          <button id="token-save" title="Enregistrer le jeton">✓</button>
+        </div>
+      </div>
+
       <div class="sidebar-footer">
         <p class="footer-note">Le modèle apprend en continu et ne peut pas être réinitialisé.
-        Entraînement en ligne via Wikipédia.</p>
+        Il se synchronise avec le modèle communautaire sur GitHub (jamais tes conversations).</p>
       </div>
     </aside>
 
@@ -95,10 +104,22 @@
                 <option value="video">🎬 Génération de vidéos</option>
               </select>
             </div>
+            <div class="control-row" id="source-row">
+              <label for="train-source">Sources</label>
+              <select id="train-source">
+                <option value="all">🌐 Toutes les sources (en parallèle)</option>
+                <option value="wikipedia">Wikipédia</option>
+                <option value="vikidia">Vikidia (encyclopédie junior)</option>
+                <option value="wikinews">Wikinews (actualités)</option>
+                <option value="wiktionary">Wiktionnaire (définitions)</option>
+                <option value="wikisource">Wikisource (livres)</option>
+                <option value="rss">Actualités (France Info, Le Monde)</option>
+              </select>
+            </div>
             <div class="control-row">
               <label for="topic-input">Sujet</label>
               <input id="topic-input" type="text"
-                     placeholder="Sujet précis (ex. « les volcans ») — vide = n'importe quel sujet">
+                     placeholder="Sujet précis, ou lien YouTube pour apprendre ses sous-titres — vide = n'importe quel sujet">
             </div>
             <button id="train-start" class="train-start">
               <span class="train-indicator"></span>
@@ -139,6 +160,7 @@
   <script src="brain.js"></script>
   <script src="vision.js"></script>
   <script src="trainer.js"></script>
+  <script src="shared.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

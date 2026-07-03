@@ -195,6 +195,20 @@ class Vision {
     });
   }
 
+  /** Exporte le générateur pour le modèle partagé. */
+  exportShared() {
+    return { genome: this.genome, stats: this.stats };
+  }
+
+  /** Fusionne un générateur partagé : on adopte le plus expérimenté. */
+  mergeShared(data) {
+    if (!data || !data.stats) return;
+    if ((data.stats.generations || 0) > this.stats.generations) {
+      if (data.genome) this.genome = data.genome;
+      this.stats = Object.assign(this.stats, data.stats);
+    }
+  }
+
   save() {
     try {
       localStorage.setItem(VISION_STORAGE_KEY, JSON.stringify({

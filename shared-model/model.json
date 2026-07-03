@@ -1,0 +1,891 @@
+{
+ "revision": 1,
+ "updatedAt": "2026-07-03T17:57:05.830Z",
+ "brain": {
+  "bigrams": {
+   "bonjour ,": {
+    "je": 1
+   },
+   ", je": {
+    "suis": 1,
+    "retiens": 1
+   },
+   "je suis": {
+    "une": 1
+   },
+   "suis une": {
+    "intelligence": 1
+   },
+   "une intelligence": {
+    "artificielle": 2
+   },
+   "intelligence artificielle": {
+    "locale": 1,
+    "apprend": 1
+   },
+   "artificielle locale": {
+    "qui": 1
+   },
+   "locale qui": {
+    "apprend": 1
+   },
+   "qui apprend": {
+    "toute": 1
+   },
+   "apprend toute": {
+    "seule": 1
+   },
+   "toute seule": {
+    ".": 1
+   },
+   "plus tu": {
+    "me": 1
+   },
+   "tu me": {
+    "parles": 1
+   },
+   "me parles": {
+    ",": 1
+   },
+   "parles ,": {
+    "plus": 1
+   },
+   ", plus": {
+    "mon": 1
+   },
+   "plus mon": {
+    "vocabulaire": 1
+   },
+   "mon vocabulaire": {
+    "grandit": 1
+   },
+   "vocabulaire grandit": {
+    "et": 1
+   },
+   "grandit et": {
+    "plus": 1
+   },
+   "et plus": {
+    "mes": 1
+   },
+   "plus mes": {
+    "réponses": 1
+   },
+   "mes réponses": {
+    "s'améliorent": 1,
+    "ressemblent": 1
+   },
+   "réponses s'améliorent": {
+    ".": 1
+   },
+   "active le": {
+    "mode": 1
+   },
+   "le mode": {
+    "auto-entraînement": 1
+   },
+   "mode auto-entraînement": {
+    "pour": 1
+   },
+   "auto-entraînement pour": {
+    "que": 1
+   },
+   "pour que": {
+    "je": 1
+   },
+   "que je": {
+    "m'entraîne": 1
+   },
+   "je m'entraîne": {
+    "en": 1
+   },
+   "m'entraîne en": {
+    "continu": 1
+   },
+   "en continu": {
+    ".": 1
+   },
+   "je fonctionne": {
+    "entièrement": 1
+   },
+   "fonctionne entièrement": {
+    "sur": 1
+   },
+   "entièrement sur": {
+    "ta": 1
+   },
+   "sur ta": {
+    "machine": 1
+   },
+   "ta machine": {
+    ",": 1
+   },
+   "machine ,": {
+    "sans": 1
+   },
+   ", sans": {
+    "connexion": 1
+   },
+   "sans connexion": {
+    "internet": 1
+   },
+   "connexion internet": {
+    ".": 1
+   },
+   "chaque message": {
+    "que": 1
+   },
+   "message que": {
+    "tu": 1
+   },
+   "que tu": {
+    "m'envoies": 1,
+    "écris": 1
+   },
+   "tu m'envoies": {
+    "enrichit": 1
+   },
+   "m'envoies enrichit": {
+    "mon": 1
+   },
+   "enrichit mon": {
+    "modèle": 1
+   },
+   "mon modèle": {
+    "de": 1
+   },
+   "modèle de": {
+    "langage": 1
+   },
+   "de langage": {
+    ".": 1
+   },
+   "l'apprentissage automatique": {
+    "consiste": 1
+   },
+   "automatique consiste": {
+    "à": 1
+   },
+   "consiste à": {
+    "découvrir": 1
+   },
+   "à découvrir": {
+    "des": 1
+   },
+   "découvrir des": {
+    "motifs": 1
+   },
+   "des motifs": {
+    "dans": 1
+   },
+   "motifs dans": {
+    "les": 1
+   },
+   "dans les": {
+    "données": 1
+   },
+   "les données": {
+    ".": 1
+   },
+   "artificielle apprend": {
+    "en": 1
+   },
+   "apprend en": {
+    "observant": 1
+   },
+   "en observant": {
+    "des": 1
+   },
+   "observant des": {
+    "exemples": 1
+   },
+   "des exemples": {
+    "et": 1
+   },
+   "exemples et": {
+    "en": 1
+   },
+   "et en": {
+    "renforçant": 1
+   },
+   "en renforçant": {
+    "ce": 1
+   },
+   "renforçant ce": {
+    "qui": 1
+   },
+   "ce qui": {
+    "fonctionne": 1
+   },
+   "qui fonctionne": {
+    ".": 1
+   },
+   "je peux": {
+    "générer": 1
+   },
+   "peux générer": {
+    "des": 1
+   },
+   "générer des": {
+    "phrases": 1
+   },
+   "des phrases": {
+    "nouvelles": 1
+   },
+   "phrases nouvelles": {
+    "en": 1
+   },
+   "nouvelles en": {
+    "combinant": 1
+   },
+   "en combinant": {
+    "ce": 1
+   },
+   "combinant ce": {
+    "que": 1
+   },
+   "ce que": {
+    "j'ai": 1,
+    "tu": 1
+   },
+   "que j'ai": {
+    "appris": 1
+   },
+   "j'ai appris": {
+    ".": 1
+   },
+   "le renforcement": {
+    "augmente": 1
+   },
+   "renforcement augmente": {
+    "la": 1
+   },
+   "augmente la": {
+    "probabilité": 1
+   },
+   "la probabilité": {
+    "des": 1
+   },
+   "probabilité des": {
+    "séquences": 1
+   },
+   "des séquences": {
+    "de": 1
+   },
+   "séquences de": {
+    "mots": 1
+   },
+   "de mots": {
+    "qui": 1
+   },
+   "mots qui": {
+    "semblent": 1
+   },
+   "qui semblent": {
+    "cohérentes": 1
+   },
+   "semblent cohérentes": {
+    ".": 1
+   },
+   "mon cerveau": {
+    "est": 1
+   },
+   "cerveau est": {
+    "une": 1
+   },
+   "est une": {
+    "chaîne": 1
+   },
+   "une chaîne": {
+    "de": 1
+   },
+   "chaîne de": {
+    "markov": 1
+   },
+   "de markov": {
+    "qui": 1
+   },
+   "markov qui": {
+    "prédit": 1
+   },
+   "qui prédit": {
+    "le": 1
+   },
+   "prédit le": {
+    "mot": 1
+   },
+   "le mot": {
+    "suivant": 1
+   },
+   "mot suivant": {
+    "à": 1
+   },
+   "suivant à": {
+    "partir": 1
+   },
+   "à partir": {
+    "des": 1
+   },
+   "partir des": {
+    "mots": 1
+   },
+   "des mots": {
+    "précédents": 1
+   },
+   "mots précédents": {
+    ".": 1
+   },
+   "n'hésite pas": {
+    "à": 1
+   },
+   "pas à": {
+    "me": 1
+   },
+   "à me": {
+    "raconter": 1
+   },
+   "me raconter": {
+    "des": 1
+   },
+   "raconter des": {
+    "choses": 1
+   },
+   "des choses": {
+    ",": 1
+   },
+   "choses ,": {
+    "je": 1
+   },
+   "je retiens": {
+    "tout": 1
+   },
+   "retiens tout": {
+    "ce": 1
+   },
+   "tout ce": {
+    "que": 1
+   },
+   "tu écris": {
+    ".": 1
+   },
+   "avec le": {
+    "temps": 1
+   },
+   "le temps": {
+    ",": 1
+   },
+   "temps ,": {
+    "mes": 1
+   },
+   ", mes": {
+    "réponses": 1
+   },
+   "réponses ressemblent": {
+    "de": 1
+   },
+   "ressemblent de": {
+    "plus": 1
+   },
+   "de plus": {
+    "en": 1
+   },
+   "plus en": {
+    "plus": 1
+   },
+   "en plus": {
+    "à": 1
+   },
+   "plus à": {
+    "ta": 1
+   },
+   "à ta": {
+    "façon": 1
+   },
+   "ta façon": {
+    "d'écrire": 1
+   },
+   "façon d'écrire": {
+    ".": 1
+   }
+  },
+  "unigrams": {
+   "bonjour": {
+    ",": 1
+   },
+   ",": {
+    "je": 2,
+    "plus": 1,
+    "sans": 1,
+    "mes": 1
+   },
+   "je": {
+    "suis": 1,
+    "m'entraîne": 1,
+    "fonctionne": 1,
+    "peux": 1,
+    "retiens": 1
+   },
+   "suis": {
+    "une": 1
+   },
+   "une": {
+    "intelligence": 2,
+    "chaîne": 1
+   },
+   "intelligence": {
+    "artificielle": 2
+   },
+   "artificielle": {
+    "locale": 1,
+    "apprend": 1
+   },
+   "locale": {
+    "qui": 1
+   },
+   "qui": {
+    "apprend": 1,
+    "fonctionne": 1,
+    "semblent": 1,
+    "prédit": 1
+   },
+   "apprend": {
+    "toute": 1,
+    "en": 1
+   },
+   "toute": {
+    "seule": 1
+   },
+   "seule": {
+    ".": 1
+   },
+   "plus": {
+    "tu": 1,
+    "mon": 1,
+    "mes": 1,
+    "en": 1,
+    "à": 1
+   },
+   "tu": {
+    "me": 1,
+    "m'envoies": 1,
+    "écris": 1
+   },
+   "me": {
+    "parles": 1,
+    "raconter": 1
+   },
+   "parles": {
+    ",": 1
+   },
+   "mon": {
+    "vocabulaire": 1,
+    "modèle": 1,
+    "cerveau": 1
+   },
+   "vocabulaire": {
+    "grandit": 1
+   },
+   "grandit": {
+    "et": 1
+   },
+   "et": {
+    "plus": 1,
+    "en": 1
+   },
+   "mes": {
+    "réponses": 2
+   },
+   "réponses": {
+    "s'améliorent": 1,
+    "ressemblent": 1
+   },
+   "s'améliorent": {
+    ".": 1
+   },
+   "active": {
+    "le": 1
+   },
+   "le": {
+    "mode": 1,
+    "renforcement": 1,
+    "mot": 1,
+    "temps": 1
+   },
+   "mode": {
+    "auto-entraînement": 1
+   },
+   "auto-entraînement": {
+    "pour": 1
+   },
+   "pour": {
+    "que": 1
+   },
+   "que": {
+    "je": 1,
+    "tu": 2,
+    "j'ai": 1
+   },
+   "m'entraîne": {
+    "en": 1
+   },
+   "en": {
+    "continu": 1,
+    "observant": 1,
+    "renforçant": 1,
+    "combinant": 1,
+    "plus": 1
+   },
+   "continu": {
+    ".": 1
+   },
+   "fonctionne": {
+    "entièrement": 1,
+    ".": 1
+   },
+   "entièrement": {
+    "sur": 1
+   },
+   "sur": {
+    "ta": 1
+   },
+   "ta": {
+    "machine": 1,
+    "façon": 1
+   },
+   "machine": {
+    ",": 1
+   },
+   "sans": {
+    "connexion": 1
+   },
+   "connexion": {
+    "internet": 1
+   },
+   "internet": {
+    ".": 1
+   },
+   "chaque": {
+    "message": 1
+   },
+   "message": {
+    "que": 1
+   },
+   "m'envoies": {
+    "enrichit": 1
+   },
+   "enrichit": {
+    "mon": 1
+   },
+   "modèle": {
+    "de": 1
+   },
+   "de": {
+    "langage": 1,
+    "mots": 1,
+    "markov": 1,
+    "plus": 1
+   },
+   "langage": {
+    ".": 1
+   },
+   "l'apprentissage": {
+    "automatique": 1
+   },
+   "automatique": {
+    "consiste": 1
+   },
+   "consiste": {
+    "à": 1
+   },
+   "à": {
+    "découvrir": 1,
+    "partir": 1,
+    "me": 1,
+    "ta": 1
+   },
+   "découvrir": {
+    "des": 1
+   },
+   "des": {
+    "motifs": 1,
+    "exemples": 1,
+    "phrases": 1,
+    "séquences": 1,
+    "mots": 1,
+    "choses": 1
+   },
+   "motifs": {
+    "dans": 1
+   },
+   "dans": {
+    "les": 1
+   },
+   "les": {
+    "données": 1
+   },
+   "données": {
+    ".": 1
+   },
+   "observant": {
+    "des": 1
+   },
+   "exemples": {
+    "et": 1
+   },
+   "renforçant": {
+    "ce": 1
+   },
+   "ce": {
+    "qui": 1,
+    "que": 2
+   },
+   "peux": {
+    "générer": 1
+   },
+   "générer": {
+    "des": 1
+   },
+   "phrases": {
+    "nouvelles": 1
+   },
+   "nouvelles": {
+    "en": 1
+   },
+   "combinant": {
+    "ce": 1
+   },
+   "j'ai": {
+    "appris": 1
+   },
+   "appris": {
+    ".": 1
+   },
+   "renforcement": {
+    "augmente": 1
+   },
+   "augmente": {
+    "la": 1
+   },
+   "la": {
+    "probabilité": 1
+   },
+   "probabilité": {
+    "des": 1
+   },
+   "séquences": {
+    "de": 1
+   },
+   "mots": {
+    "qui": 1,
+    "précédents": 1
+   },
+   "semblent": {
+    "cohérentes": 1
+   },
+   "cohérentes": {
+    ".": 1
+   },
+   "cerveau": {
+    "est": 1
+   },
+   "est": {
+    "une": 1
+   },
+   "chaîne": {
+    "de": 1
+   },
+   "markov": {
+    "qui": 1
+   },
+   "prédit": {
+    "le": 1
+   },
+   "mot": {
+    "suivant": 1
+   },
+   "suivant": {
+    "à": 1
+   },
+   "partir": {
+    "des": 1
+   },
+   "précédents": {
+    ".": 1
+   },
+   "n'hésite": {
+    "pas": 1
+   },
+   "pas": {
+    "à": 1
+   },
+   "raconter": {
+    "des": 1
+   },
+   "choses": {
+    ",": 1
+   },
+   "retiens": {
+    "tout": 1
+   },
+   "tout": {
+    "ce": 1
+   },
+   "écris": {
+    ".": 1
+   },
+   "avec": {
+    "le": 1
+   },
+   "temps": {
+    ",": 1
+   },
+   "ressemblent": {
+    "de": 1
+   },
+   "façon": {
+    "d'écrire": 1
+   },
+   "d'écrire": {
+    ".": 1
+   }
+  },
+  "starts": {
+   "bonjour ,": 1,
+   "plus tu": 1,
+   "active le": 1,
+   "je fonctionne": 1,
+   "chaque message": 1,
+   "l'apprentissage automatique": 1,
+   "une intelligence": 1,
+   "je peux": 1,
+   "le renforcement": 1,
+   "mon cerveau": 1,
+   "n'hésite pas": 1,
+   "avec le": 1
+  },
+  "vocab": [
+   "bonjour",
+   ",",
+   "je",
+   "suis",
+   "une",
+   "intelligence",
+   "artificielle",
+   "locale",
+   "qui",
+   "apprend",
+   "toute",
+   "seule",
+   ".",
+   "plus",
+   "tu",
+   "me",
+   "parles",
+   "mon",
+   "vocabulaire",
+   "grandit",
+   "et",
+   "mes",
+   "réponses",
+   "s'améliorent",
+   "active",
+   "le",
+   "mode",
+   "auto-entraînement",
+   "pour",
+   "que",
+   "m'entraîne",
+   "en",
+   "continu",
+   "fonctionne",
+   "entièrement",
+   "sur",
+   "ta",
+   "machine",
+   "sans",
+   "connexion",
+   "internet",
+   "chaque",
+   "message",
+   "m'envoies",
+   "enrichit",
+   "modèle",
+   "de",
+   "langage",
+   "l'apprentissage",
+   "automatique",
+   "consiste",
+   "à",
+   "découvrir",
+   "des",
+   "motifs",
+   "dans",
+   "les",
+   "données",
+   "observant",
+   "exemples",
+   "renforçant",
+   "ce",
+   "peux",
+   "générer",
+   "phrases",
+   "nouvelles",
+   "combinant",
+   "j'ai",
+   "appris",
+   "renforcement",
+   "augmente",
+   "la",
+   "probabilité",
+   "séquences",
+   "mots",
+   "semblent",
+   "cohérentes",
+   "cerveau",
+   "est",
+   "chaîne",
+   "markov",
+   "prédit",
+   "mot",
+   "suivant",
+   "partir",
+   "précédents",
+   "n'hésite",
+   "pas",
+   "raconter",
+   "choses",
+   "retiens",
+   "tout",
+   "écris",
+   "avec",
+   "temps",
+   "ressemblent",
+   "façon",
+   "d'écrire"
+  ],
+  "memory": [],
+  "stats": {
+   "epochs": 0,
+   "sentencesLearned": 12,
+   "selfReinforced": 0,
+   "confidence": 0
+  }
+ },
+ "vision": {
+  "genome": {
+   "hueBase": 210,
+   "hueSpread": 80,
+   "saturation": 62,
+   "lightness": 50,
+   "shapes": 12,
+   "symmetry": true,
+   "noise": 0.2,
+   "flow": 1.2
+  },
+  "stats": {
+   "generations": 0,
+   "candidatesEvaluated": 0,
+   "bestScore": 0
+  }
+ }
+}

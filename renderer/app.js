@@ -36,7 +36,12 @@ const newChatBtn = document.getElementById('new-chat-btn');
 const conversationListEl = document.getElementById('conversation-list');
 
 const trainModeEl = document.getElementById('train-mode');
+const trainSourceEl = document.getElementById('train-source');
+const sourceRowEl = document.getElementById('source-row');
 const topicInputEl = document.getElementById('topic-input');
+const shareStatusEl = document.getElementById('share-status');
+const githubTokenEl = document.getElementById('github-token');
+const tokenSaveBtn = document.getElementById('token-save');
 const trainStartBtn = document.getElementById('train-start');
 const trainStartLabel = trainStartBtn.querySelector('.train-start-label');
 const trainFeedEl = document.getElementById('train-feed');
@@ -459,25 +464,49 @@ function setTrainingUI(active) {
   trainStartLabel.textContent = active ? "Arrêter l'entraînement" : "Lancer l'entraînement";
   tabTrainingDot.hidden = !active;
   trainModeEl.disabled = active;
+  trainSourceEl.disabled = active;
 }
+
+// Le choix de sources ne concerne que l'entraînement texte.
+trainModeEl.addEventListener('change', () => {
+  sourceRowEl.hidden = trainModeEl.value !== 'text';
+});
 
 async function textTrainingStep() {
   if (trainingBusy) return;
   trainingBusy = true;
   const topic = topicInputEl.value.trim();
-  const before = brain.getStats();
+  const sources = Trainer.resolveSources(trainSourceEl.value, topic);
   try {
-    const article = topic
-      ? await Trainer.fetchArticleOnTopic(topic)
-      : await Trainer.fetchRandomArticle();
-    if (article) {
-      brain.learn(article.extract, 1, article.title);
+    const before = brain.getStats();
+    const { results, errors } = await Trainer.fetchBatch(sources, topic);
+    for (const r of results) {
+      const b = brain.getStats();
+      brain.learn(r.extract, 1, r.title);
+      const a = brain.getStats();
+      feedEntry(`📖 [${r.sourceLabel}] « ${r.title} » — +${a.sentencesLearned - b.sentencesLearned} phrases, +${a.memories - b.memories} souvenirs.`);
+    }
+    if (results.length > 1) {
       const after = brain.getStats();
-      feedEntry(`📖 « ${article.title} » étudié — +${after.sentencesLearned - before.sentencesLearned} phrases, +${after.memories - before.memories} souvenirs, vocabulaire : ${after.vocabSize} mots.`);
-    } else {
-      feedEntry(topic
-        ? `🔍 Rien trouvé sur « ${topic} », nouvel essai au prochain cycle…`
-        : '🔍 Article vide, nouvel essai au prochain cycle…');
+      feedEntry(`⚡ ${results.length} sources étudiées en parallèle — vocabulaire : ${after.vocabSize} mots (+${after.sentencesLearned - before.sentencesLearned} phrases ce cycle).`);
+    }
+    if (!results.length) {
+      if (errors.length) {
+        feedEntry(`⚠ ${errors[0].error} — je m'auto-entraîne en local en attendant.`, 'warn');
+      } else {
+        feedEntry(topic
+          ? `🔍 Rien trouvé sur « ${topic} », nouvel essai au prochain cycle…`
+          : '🔍 Articles vides, nouvel essai au prochain cycle…');
+      }
+    }
+    // Une vidéo YouTube s'apprend en une fois : inutile de boucler dessus.
+    if (sources.includes('youtube') && results.length) {
+      feedEntry('🎬 Sous-titres de la vidéo appris — entraînement terminé pour cette vidéo.');
+      brain.save();
+      updateStats();
+      stopTraining();
+      trainingBusy = false;
+      return;
     }
   } catch (e) {
     feedEntry('⚠ Internet inaccessible — je m\'auto-entraîne en local en attendant.', 'warn');
@@ -490,6 +519,7 @@ async function textTrainingStep() {
   }
   brain.save();
   updateStats();
+  maybePublishSharedModel();
   trainingBusy = false;
 }
 
@@ -537,9 +567,11 @@ function startTraining() {
   setTrainingUI(true);
 
   if (mode === 'text') {
+    const sources = Trainer.resolveSources(trainSourceEl.value, topic);
+    const labels = sources.map(s => s === 'rss' ? 'Actualités' : s === 'youtube' ? 'YouTube' : Trainer.MEDIAWIKI_SOURCES[s].label).join(', ');
     feedEntry(topic
-      ? `🚀 Entraînement lancé sur le sujet « ${topic} » (via Wikipédia).`
-      : '🚀 Entraînement lancé sur des sujets aléatoires (via Wikipédia).');
+      ? `🚀 Entraînement lancé sur « ${topic} » — sources : ${labels}.`
+      : `🚀 Entraînement lancé sur des sujets aléatoires — sources : ${labels}.`);
     textTrainingStep();
     trainingTimer = setInterval(textTrainingStep, TEXT_TRAIN_INTERVAL_MS);
   } else {
@@ -577,6 +609,55 @@ function updateStats() {
     Math.min(100, Math.round(s.confidence * 100)) + '%';
 }
 
+/* ---------- Modèle partagé (GitHub) ---------- */
+
+const PUBLISH_EVERY_SENTENCES = 300; // « grande avancée » = 300 phrases apprises
+let lastPublishedAt = parseInt(localStorage.getItem('ai-local-last-published') || '0', 10);
+let publishing = false;
+
+function setShareStatus(text) {
+  shareStatusEl.textContent = text;
+}
+
+async function syncSharedModel() {
+  try {
+    const info = await Shared.syncDown(brain, vision);
+    if (info.merged) {
+      setShareStatus(`✓ Modèle communautaire fusionné (révision ${info.revision}).`);
+      updateStats();
+    } else {
+      setShareStatus(`✓ À jour avec le modèle communautaire${info.revision ? ` (révision ${info.revision})` : ''}.`);
+    }
+  } catch (e) {
+    setShareStatus('Modèle communautaire inaccessible (hors ligne ?). Nouvel essai au prochain lancement.');
+  }
+}
+
+async function maybePublishSharedModel() {
+  if (publishing || !Shared.getToken()) return;
+  const learned = brain.getStats().sentencesLearned;
+  if (learned - lastPublishedAt < PUBLISH_EVERY_SENTENCES) return;
+  publishing = true;
+  try {
+    const { revision } = await Shared.publish(brain, vision);
+    lastPublishedAt = learned;
+    localStorage.setItem('ai-local-last-published', String(learned));
+    setShareStatus(`⬆ Grande avancée publiée sur GitHub (révision ${revision}).`);
+    feedEntry(`⬆ Grande avancée : modèle publié sur GitHub (révision ${revision}) — sans les conversations.`);
+  } catch (e) {
+    setShareStatus('Publication impossible : ' + (e.message || e));
+  }
+  publishing = false;
+}
+
+githubTokenEl.value = Shared.getToken();
+tokenSaveBtn.addEventListener('click', () => {
+  Shared.setToken(githubTokenEl.value);
+  setShareStatus(Shared.getToken()
+    ? '✓ Jeton enregistré : les grandes avancées seront publiées sur GitHub.'
+    : 'Jeton retiré : le modèle est seulement téléchargé, plus publié.');
+});
+
 /* ---------- Démarrage ---------- */
 
 loadConversations();
@@ -584,4 +665,5 @@ loadGallery();
 renderConversationList();
 renderMessages();
 updateStats();
+syncSharedModel();
 inputEl.focus();

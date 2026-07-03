@@ -139,6 +139,22 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+.share-section { flex: 0 0 auto; }
+.share-status { font-size: 12px; color: var(--text-dim); line-height: 1.45; }
+.share-token-row { display: flex; gap: 6px; }
+.share-token-row input {
+  flex: 1; min-width: 0;
+  background: var(--bg-input); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 7px 10px; font-size: 12px; outline: none;
+}
+.share-token-row input:focus { border-color: var(--accent); }
+.share-token-row button {
+  width: 32px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--bg-input); color: var(--green); cursor: pointer; font-size: 14px;
+}
+.share-token-row button:hover { border-color: var(--green); }
+
 .sidebar-footer { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
 .footer-note { font-size: 11px; color: var(--text-dim); line-height: 1.4; }
 

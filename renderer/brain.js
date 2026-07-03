@@ -214,7 +214,62 @@ class Brain {
       /^(qui|que|quoi|comment|pourquoi|quand|combien|qu'est|qu’est|est-ce|c'est quoi|c’est quoi|parle-moi|raconte|explique|dis-moi)/i.test(text.trim());
   }
 
+  // ---------- Petites conversations (salutations, politesse) ----------
+
+  smalltalk(text) {
+    const t = text.trim().toLowerCase();
+    const stats = this.getStats();
+    const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+    if (/(ça va|ca va|cava|tu vas bien|comment vas|comment tu vas|la forme)/i.test(t)) {
+      return pick([
+        `Ça va très bien, merci ! Mon vocabulaire vient de passer à ${stats.vocabSize} mots. Et toi, ça va ?`,
+        `En pleine forme : ${stats.memories} souvenirs en tête et toujours envie d'apprendre. Et toi ?`,
+        `Super bien ! Je viens de réviser mes ${stats.sentencesLearned} phrases apprises. Et de ton côté ?`,
+        `Ça va ! J'attends qu'on lance un entraînement pour muscler mon cerveau. Tu vas bien, toi ?`
+      ]);
+    }
+    if (/^(salut|hey|hello|coucou|bonjour|bonsoir|yo|slt|wesh|re)\b/i.test(t) && t.length < 30) {
+      return pick([
+        'Salut ! Content de te voir. De quoi on parle aujourd\'hui ?',
+        'Hey ! Prêt à discuter — ou à m\'entraîner sur un nouveau sujet ?',
+        'Bonjour ! Pose-moi une question, ou apprends-moi quelque chose.',
+        'Coucou ! Tu veux discuter, me faire dessiner, ou m\'envoyer étudier ?'
+      ]);
+    }
+    if (/\bmerci\b/i.test(t) && t.length < 40) {
+      return pick([
+        'Avec plaisir !',
+        'De rien ! C\'est en discutant que j\'apprends.',
+        'Pas de quoi — reviens quand tu veux.'
+      ]);
+    }
+    if (/(au revoir|à plus|a plus|bye|bonne nuit|à demain|a demain|ciao)/i.test(t) && t.length < 40) {
+      return pick([
+        'À bientôt ! Je continue de réviser en t\'attendant.',
+        'Au revoir ! Pense à me lancer un entraînement de temps en temps.',
+        'Bonne journée ! Mes souvenirs t\'attendront.'
+      ]);
+    }
+    if (/(qui es[- ]tu|tu es qui|t'es qui|t’es qui|comment tu t'appelles|comment tu t’appelles|ton nom)/i.test(t)) {
+      return `Je suis AI Local, une IA qui vit entièrement sur ta machine et qui apprend toute seule. J'ai déjà ${stats.vocabSize} mots de vocabulaire et ${stats.memories} souvenirs — et je progresse à chaque conversation.`;
+    }
+    return null;
+  }
+
+  /** Forme normalisée pour comparer une réponse au message de l'utilisateur. */
+  normalized(text) {
+    return text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+
   reply(userText) {
+    // Salutations et politesse : réponses dédiées, pas de génération.
+    const small = this.smalltalk(userText);
+    if (small) {
+      this.learn(userText, 0.5);
+      return small;
+    }
+
     // Les affirmations de l'utilisateur sont mémorisées comme des faits.
     this.learn(userText, 1, this.isQuestion(userText) ? null : 'toi');
 
@@ -229,9 +284,28 @@ class Brain {
       }
     }
 
-    for (let attempt = 0; attempt < 5; attempt++) {
+    // Génération, en refusant les réponses qui répètent le message reçu.
+    // Pour une question, la réponse doit au moins partager un mot-clé avec
+    // elle — sinon mieux vaut admettre qu'on ne sait pas.
+    const userNorm = this.normalized(userText);
+    const isQ = this.isQuestion(userText);
+    const qk = new Set(this.keywords(userText));
+    for (let attempt = 0; attempt < 8; attempt++) {
       const gen = this.generate(userText);
-      if (gen && gen.length >= 4) return gen.text;
+      if (!gen || gen.length < 4) continue;
+      const genNorm = this.normalized(gen.text);
+      if (genNorm === userNorm || genNorm.startsWith(userNorm) || userNorm.startsWith(genNorm)) continue;
+      if (isQ && qk.size && !this.keywords(gen.text).some(k => qk.has(k))) continue;
+      return gen.text;
+    }
+
+    if (this.isQuestion(userText)) {
+      const q = [
+        'Bonne question… je ne connais pas encore la réponse. Lance un entraînement sur ce sujet dans l\'onglet S\'entraîner et repose-la-moi !',
+        'Je n\'ai pas encore de souvenir là-dessus. Fais-moi étudier ce sujet et je saurai te répondre.',
+        'Hmm, ce sujet ne me dit rien pour l\'instant — entraîne-moi dessus et on en reparle !'
+      ];
+      return q[Math.floor(Math.random() * q.length)];
     }
     return FALLBACKS[Math.floor(Math.random() * FALLBACKS.length)];
   }
@@ -285,6 +359,52 @@ class Brain {
     this.trainingLog.unshift(summary);
     if (this.trainingLog.length > 50) this.trainingLog.pop();
     return summary;
+  }
+
+  // ---------- Modèle partagé (GitHub) ----------
+
+  /** Exporte le modèle pour le partage — sans aucune conversation. */
+  exportShared() {
+    return {
+      bigrams: this.bigrams,
+      unigrams: this.unigrams,
+      starts: this.starts,
+      vocab: [...this.vocab],
+      memory: this.memory.filter(m => m.source !== 'toi'), // vie privée : pas de faits personnels
+      stats: this.stats
+    };
+  }
+
+  /** Fusionne un modèle partagé dans le modèle local (union des connaissances). */
+  mergeShared(data) {
+    const mergeTable = (local, incoming) => {
+      for (const key in incoming) {
+        for (const next in incoming[key]) {
+          this.bump(local, key, next, incoming[key][next]);
+        }
+      }
+    };
+    mergeTable(this.bigrams, data.bigrams || {});
+    mergeTable(this.unigrams, data.unigrams || {});
+    for (const key in (data.starts || {})) {
+      this.starts[key] = (this.starts[key] || 0) + data.starts[key];
+    }
+    for (const w of (data.vocab || [])) this.vocab.add(w);
+
+    const known = new Set(this.memory.map(m => m.text));
+    for (const m of (data.memory || [])) {
+      if (m && m.text && !known.has(m.text) && m.source !== 'toi') {
+        this.memory.push({ text: m.text, source: m.source });
+        known.add(m.text);
+      }
+    }
+    while (this.memory.length > 800) this.memory.shift();
+
+    const s = data.stats || {};
+    this.stats.epochs = Math.max(this.stats.epochs, s.epochs || 0);
+    this.stats.sentencesLearned = Math.max(this.stats.sentencesLearned, s.sentencesLearned || 0);
+    this.stats.selfReinforced = Math.max(this.stats.selfReinforced, s.selfReinforced || 0);
+    this.stats.confidence = Math.max(this.stats.confidence, s.confidence || 0);
   }
 
   // ---------- Statistiques & persistance ----------

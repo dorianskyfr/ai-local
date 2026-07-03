@@ -8,9 +8,30 @@ const SPEEDS = {
   fast:     { label: 'Rapide',   text: 2500,  media: 900 },
   turbo:    { label: 'Turbo',    text: 1200,  media: 500 },
   ultimate: { label: 'Ultimate', text: 700,   media: 250, caution: true },
-  eclair:   { label: 'Éclair',   text: 350,   media: 120, caution: true }
+  eclair:   { label: 'Éclair',   text: 350,   media: 120, caution: true },
+  // Recalculée en direct depuis les curseurs cœurs/RAM (voir plus bas).
+  custom:   { label: 'Personnalisée', text: 5000, media: 1500, isCustom: true }
 };
 const SPEED_KEY = 'ai-local-speed';
+const CUSTOM_CORES_KEY = 'ai-local-speed-cores';
+const CUSTOM_RAM_KEY = 'ai-local-speed-ram';
+
+/**
+ * Calcule la cadence pour la vitesse personnalisée à partir des cœurs et de
+ * la RAM choisis par l'utilisateur. Honnêteté : ceci ne réserve pas
+ * littéralement N cœurs ou N Go (une appli aussi légère n'a pas besoin de
+ * les épingler) — le curseur sert à estimer la marge dont dispose ta machine
+ * et à régler la cadence des cycles en conséquence, plus vite si tu indiques
+ * plus de ressources disponibles.
+ */
+function computeCustomSpeed(cores, ramGo) {
+  const powerCores = Math.min(1, cores / 16);
+  const powerRam = Math.min(1, ramGo / 32);
+  const power = powerCores * 0.6 + powerRam * 0.4;
+  const text = Math.round(SPEEDS.eco.text - power * (SPEEDS.eco.text - SPEEDS.eclair.text));
+  const media = Math.round(SPEEDS.eco.media - power * (SPEEDS.eco.media - SPEEDS.eclair.media));
+  return { text, media };
+}
 
 /*
  * À vitesse Turbo et au-delà, le cycle d'affichage (consolidation locale,
@@ -471,7 +492,7 @@ function handleSend() {
         try {
           const { results } = await Trainer.fetchBatch(Trainer.resolveSources('all', query), query);
           for (const r of results) brain.learn(r.extract, 1, r.title);
-          const fact = brain.recall(text, 2) || brain.recall(query, 2);
+          const fact = brain.recall(text) || brain.recall(query);
           if (fact) {
             finishWith(`Je viens de me renseigner ! D'après « ${fact.source} » : ${fact.text}`);
             return;
@@ -547,13 +568,23 @@ trainModeEl.addEventListener('change', () => {
   sourceRowEl.hidden = trainModeEl.value !== 'text';
 });
 
-/* ---------- Vitesse d'apprentissage (scan du PC) ---------- */
+/* ---------- Vitesse d'apprentissage (scan du PC + personnalisée) ---------- */
+
+const customCoresEl = document.getElementById('custom-cores');
+const customCoresValEl = document.getElementById('custom-cores-val');
+const customRamEl = document.getElementById('custom-ram');
+const customRamValEl = document.getElementById('custom-ram-val');
+const customCoresRowEl = document.getElementById('custom-cores-row');
+const customRamRowEl = document.getElementById('custom-ram-row');
+const customSpeedNoteEl = document.getElementById('custom-speed-note');
 
 for (const key in SPEEDS) {
   const opt = document.createElement('option');
   opt.value = key;
   const s = SPEEDS[key];
-  opt.textContent = `${s.label} — 1 cycle toutes les ${(s.text / 1000).toLocaleString('fr-FR')} s`;
+  opt.textContent = s.isCustom
+    ? `${s.label} — réglable avec les curseurs ci-dessous`
+    : `${s.label} — 1 cycle toutes les ${(s.text / 1000).toLocaleString('fr-FR')} s`;
   if (key === pcInfo.recommended) opt.textContent += ' (recommandé pour ton PC)';
   else if (s.caution) opt.textContent += ' (sollicite fortement les sources — à réserver aux bons PC)';
   trainSpeedEl.appendChild(opt);
@@ -561,8 +592,31 @@ for (const key in SPEEDS) {
 trainSpeedEl.value = currentSpeed();
 pcScanEl.textContent = `🖥 Scan de ton PC : ${pcInfo.cores} cœurs, ~${pcInfo.memGo} Go de mémoire → vitesse recommandée : ${SPEEDS[pcInfo.recommended].label}.`;
 
-trainSpeedEl.addEventListener('change', () => {
+customCoresEl.max = String(Math.max(16, pcInfo.cores));
+customCoresEl.value = localStorage.getItem(CUSTOM_CORES_KEY) || String(pcInfo.cores);
+customRamEl.value = localStorage.getItem(CUSTOM_RAM_KEY) || String(pcInfo.memGo);
+
+function refreshCustomSpeed() {
+  const cores = parseInt(customCoresEl.value, 10);
+  const ram = parseInt(customRamEl.value, 10);
+  customCoresValEl.textContent = String(cores);
+  customRamValEl.textContent = ram + ' Go';
+  Object.assign(SPEEDS.custom, computeCustomSpeed(cores, ram));
+  customSpeedNoteEl.textContent = `⚙ Cadence estimée : 1 cycle toutes les ${(SPEEDS.custom.text / 1000).toLocaleString('fr-FR')} s (texte) / ${(SPEEDS.custom.media / 1000).toLocaleString('fr-FR')} s (médias). Ceci règle la cadence, ça ne réserve pas littéralement ces ressources.`;
+}
+refreshCustomSpeed();
+
+function updateCustomRowVisibility() {
+  const isCustom = trainSpeedEl.value === 'custom';
+  customCoresRowEl.hidden = !isCustom;
+  customRamRowEl.hidden = !isCustom;
+  customSpeedNoteEl.hidden = !isCustom;
+}
+updateCustomRowVisibility();
+
+function applySpeedChange() {
   localStorage.setItem(SPEED_KEY, trainSpeedEl.value);
+  updateCustomRowVisibility();
   // Si un entraînement tourne, on le recale sur la nouvelle cadence.
   if (trainingTimer) {
     const mode = trainModeEl.value;
@@ -573,7 +627,17 @@ trainSpeedEl.addEventListener('change', () => {
     );
     feedEntry(`⚙ Vitesse d'apprentissage réglée sur ${SPEEDS[currentSpeed()].label}.`);
   }
-});
+}
+
+trainSpeedEl.addEventListener('change', applySpeedChange);
+
+for (const [el, key] of [[customCoresEl, CUSTOM_CORES_KEY], [customRamEl, CUSTOM_RAM_KEY]]) {
+  el.addEventListener('input', () => {
+    localStorage.setItem(key, el.value);
+    refreshCustomSpeed();
+    if (trainSpeedEl.value === 'custom') applySpeedChange();
+  });
+}
 
 async function textTrainingStep() {
   if (trainingBusy) return;
@@ -746,7 +810,7 @@ function stopTraining() {
   stopPreview();
   setTrainingUI(false);
   feedEntry('⏹ Entraînement arrêté. Le modèle a conservé tout ce qu\'il a appris.');
-  updatePresence('Discute avec son IA locale', 'AI Local v0.7');
+  updatePresence('Discute avec son IA locale', 'AI Local v0.8');
 }
 
 trainStartBtn.addEventListener('click', () => {
@@ -765,6 +829,32 @@ function updateStats() {
   document.getElementById('stat-generations').textContent = vision.stats.generations;
   document.getElementById('confidence-fill').style.width =
     Math.min(100, Math.round(s.confidence * 100)) + '%';
+  updateMilestones();
+}
+
+/* ---------- Paliers de progression (texte + images) ---------- */
+
+const MILESTONE_TEXT_KEY = 'ai-local-milestone-text';
+const MILESTONE_IMAGE_KEY = 'ai-local-milestone-image';
+
+function renderMilestone(kind, milestone, badgeEl, nameEl, storageKey) {
+  badgeEl.querySelector('.milestone-icon').textContent = milestone.icon;
+  nameEl.textContent = milestone.name;
+  const seenIndex = parseInt(localStorage.getItem(storageKey) || '0', 10);
+  if (milestone.index > seenIndex) {
+    localStorage.setItem(storageKey, String(milestone.index));
+    badgeEl.classList.add('level-up');
+    setTimeout(() => badgeEl.classList.remove('level-up'), 2400);
+    const domaine = kind === 'text' ? "à l'écrit" : 'en génération visuelle';
+    feedEntry(`🏆 Nouveau palier ${domaine} : ${milestone.icon} ${milestone.name} ! (palier interne et ludique, pas une comparaison avec de vrais modèles d'IA)`);
+  }
+}
+
+function updateMilestones() {
+  renderMilestone('text', brain.getMilestone(),
+    document.getElementById('milestone-text'), document.getElementById('milestone-text-name'), MILESTONE_TEXT_KEY);
+  renderMilestone('image', vision.getMilestone(),
+    document.getElementById('milestone-image'), document.getElementById('milestone-image-name'), MILESTONE_IMAGE_KEY);
 }
 
 /* ---------- Modèle partagé (GitHub) ---------- */
@@ -853,7 +943,7 @@ discordSaveBtn.addEventListener('click', () => {
   localStorage.setItem(DISCORD_KEY, id);
   if (id) {
     discordStatusEl.textContent = '✓ Présence activée (Discord doit être ouvert sur ce PC).';
-    updatePresence('Discute avec son IA locale', 'AI Local v0.7');
+    updatePresence('Discute avec son IA locale', 'AI Local v0.8');
   } else {
     discordStatusEl.textContent = 'Présence désactivée.';
     if (window.native && window.native.discordPresence) window.native.discordPresence({ clientId: '' });
@@ -868,5 +958,5 @@ renderConversationList();
 renderMessages();
 updateStats();
 syncSharedModel();
-updatePresence('Discute avec son IA locale', 'AI Local v0.7');
+updatePresence('Discute avec son IA locale', 'AI Local v0.8');
 inputEl.focus();

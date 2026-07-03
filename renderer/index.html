@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Local — v0.7</title>
+  <title>AI Local — v0.8</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -15,7 +15,7 @@
         <div class="logo">
           <span class="logo-dot"></span>
           <span class="logo-text">AI Local</span>
-          <span class="version-badge">v0.7</span>
+          <span class="version-badge">v0.8</span>
         </div>
       </div>
 
@@ -31,6 +31,22 @@
 
       <div class="sidebar-section stats-section">
         <h3>Modèle</h3>
+        <div class="milestones" title="Paliers internes et ludiques pour suivre la progression — pas une comparaison avec de vrais modèles d'IA.">
+          <div class="milestone-badge" id="milestone-text">
+            <span class="milestone-icon">🌱</span>
+            <div class="milestone-info">
+              <span class="milestone-label">Texte</span>
+              <span class="milestone-name" id="milestone-text-name">Graine</span>
+            </div>
+          </div>
+          <div class="milestone-badge" id="milestone-image">
+            <span class="milestone-icon">🖍️</span>
+            <div class="milestone-info">
+              <span class="milestone-label">Images</span>
+              <span class="milestone-name" id="milestone-image-name">Gribouillage</span>
+            </div>
+          </div>
+        </div>
         <div class="stats">
           <div class="stat-row"><span>Cycles</span><strong id="stat-epochs">0</strong></div>
           <div class="stat-row"><span>Vocabulaire</span><strong id="stat-vocab">0</strong></div>
@@ -144,6 +160,17 @@
               <label for="train-speed">Vitesse</label>
               <select id="train-speed"></select>
             </div>
+            <div class="control-row" id="custom-cores-row" hidden>
+              <label for="custom-cores">Cœurs</label>
+              <input id="custom-cores" type="range" min="1" max="32" value="4">
+              <span id="custom-cores-val" class="range-val">4</span>
+            </div>
+            <div class="control-row" id="custom-ram-row" hidden>
+              <label for="custom-ram">RAM (Go)</label>
+              <input id="custom-ram" type="range" min="1" max="64" value="8">
+              <span id="custom-ram-val" class="range-val">8 Go</span>
+            </div>
+            <p id="custom-speed-note" class="pc-scan" hidden></p>
             <p id="pc-scan" class="pc-scan"></p>
             <button id="train-start" class="train-start">
               <span class="train-indicator"></span>

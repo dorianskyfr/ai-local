@@ -117,6 +117,25 @@ body {
   50% { opacity: 0.4; }
 }
 
+.milestones { display: flex; gap: 8px; margin-bottom: 10px; }
+.milestone-badge {
+  flex: 1; display: flex; align-items: center; gap: 8px;
+  background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 9px 10px; min-width: 0;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+.milestone-badge.level-up {
+  border-color: var(--green);
+  box-shadow: 0 0 12px rgba(61, 220, 132, 0.35);
+}
+.milestone-icon { font-size: 20px; flex-shrink: 0; }
+.milestone-info { display: flex; flex-direction: column; min-width: 0; }
+.milestone-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); }
+.milestone-name {
+  font-size: 12px; font-weight: 600; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
 .stats {
   background: var(--bg-input); border-radius: var(--radius);
   padding: 12px; display: flex; flex-direction: column; gap: 8px;
@@ -221,6 +240,14 @@ body {
   padding: 9px 12px; font: inherit; font-size: 14px; outline: none;
 }
 .control-row select:focus, .control-row input:focus { border-color: var(--accent); }
+
+.control-row input[type="range"] {
+  padding: 0; border: none; background: transparent; accent-color: var(--accent);
+}
+.range-val {
+  width: 44px; flex-shrink: 0; text-align: right;
+  font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums;
+}
 
 .pc-scan { font-size: 12px; color: var(--text-dim); }
 

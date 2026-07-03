@@ -13,6 +13,24 @@
 
 const STORAGE_KEY = 'ai-local-brain-v1';
 
+/*
+ * Paliers de progression — purement internes et ludiques, pour visualiser le
+ * chemin parcouru. Ce ne sont PAS des comparaisons avec de vrais modèles
+ * d'IA (GPT, Claude…) : un modèle de n-grammes de quelques Mo n'a rien à voir
+ * avec ces systèmes, et prétendre le contraire serait malhonnête. C'est un
+ * repère de progression personnelle, comme un niveau de jeu.
+ */
+const TEXT_TIERS = [
+  { min: 0,     name: 'Graine',                 icon: '🌱' },
+  { min: 150,   name: 'Pousse',                 icon: '🌿' },
+  { min: 400,   name: 'Curieux',                icon: '🔍' },
+  { min: 900,   name: 'Étudiant assidu',         icon: '📚' },
+  { min: 1800,  name: 'Érudit local',            icon: '🎓' },
+  { min: 3500,  name: 'Bibliothèque ambulante',  icon: '📖' },
+  { min: 6000,  name: 'Sage du village',         icon: '🧙' },
+  { min: 10000, name: 'Oracle local',            icon: '🔮' }
+];
+
 const SEED_CORPUS = [
   "Bonjour, je suis une intelligence artificielle locale qui apprend toute seule.",
   "Plus tu me parles, plus mon vocabulaire grandit et plus mes réponses s'améliorent.",
@@ -26,13 +44,6 @@ const SEED_CORPUS = [
   "Mon cerveau est une chaîne de Markov qui prédit le mot suivant à partir des mots précédents.",
   "N'hésite pas à me raconter des choses, je retiens tout ce que tu écris.",
   "Avec le temps, mes réponses ressemblent de plus en plus à ta façon d'écrire."
-];
-
-const FALLBACKS = [
-  "Je suis encore en train d'apprendre… continue de me parler pour m'entraîner !",
-  "Mon vocabulaire est encore petit. Active l'auto-entraînement pour m'aider à progresser.",
-  "Intéressant ! Dis-m'en plus, chaque phrase m'aide à apprendre.",
-  "Je note tout ce que tu écris pour améliorer mes prochaines réponses."
 ];
 
 class Brain {
@@ -115,10 +126,20 @@ class Brain {
 
   static STOPWORDS = new Set(('le la les un une des du de d l et ou où mais donc or ni car que qui quoi dont est sont était a ont ce cette ces se sa son ses ne pas plus très en dans sur pour par avec sans sous vers chez il elle ils elles on nous vous je tu au aux y été être avoir fait comme aussi tout tous toute toutes leur leurs autre autres même').split(' '));
 
+  /** Insensible aux accents, pour matcher « théorie »/« theorie », « été »/« ete »… */
+  foldAccents(s) {
+    return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+  }
+
   keywords(text) {
-    return this.tokenize(text).filter(t =>
-      t.length >= 3 && !/[.!?,;:]/.test(t) && !Brain.STOPWORDS.has(t)
-    );
+    return this.tokenize(text)
+      .filter(t => t.length >= 3 && !/[.!?,;:]/.test(t) && !Brain.STOPWORDS.has(t))
+      .map(t => this.foldAccents(t));
+  }
+
+  /** Un message qui parle de l'utilisateur lui-même plutôt que de demander une info. */
+  looksPersonal(text) {
+    return /\b(je|j'|j’|mon|ma|mes|moi|m'appelle|m’appelle|chez moi)\b/i.test(text);
   }
 
   remember(sentence, source) {
@@ -129,20 +150,36 @@ class Brain {
     if (this.memory.length > 800) this.memory.shift();
   }
 
-  /** Retrouve les faits les plus pertinents pour une requête (mots-clés partagés). */
-  recall(query, minScore = 2) {
+  /**
+   * Retrouve le fait le plus pertinent pour une requête. Deux conditions à
+   * la fois : une bonne PROPORTION des mots-clés de la requête doivent être
+   * dans le souvenir (pas juste un seul mot générique en commun — c'est ce
+   * qui faisait citer un fait sans rapport, genre une manif lycéenne pour
+   * une question sur une population communale, juste parce que « nombre »
+   * apparaissait dans les deux), et un minimum absolu de mots partagés.
+   */
+  recall(query, minRatio = 0.6) {
     const qk = new Set(this.keywords(query));
     if (!qk.size) return null;
+    const needAtLeast = Math.min(2, qk.size);
+
     let best = null;
     let bestScore = 0;
     for (const m of this.memory) {
+      const mk = new Set(this.keywords(m.text));
+      let matched = 0;
       let score = 0;
-      for (const k of this.keywords(m.text)) {
-        if (qk.has(k)) score += Math.min(3, Math.max(1, k.length - 3));
+      for (const k of qk) {
+        if (mk.has(k)) {
+          matched += 1;
+          score += Math.min(3, Math.max(1, k.length - 3));
+        }
       }
+      if (matched < needAtLeast) continue;
+      if (matched / qk.size < minRatio) continue;
       if (score > bestScore) { bestScore = score; best = m; }
     }
-    return bestScore >= minScore ? best : null;
+    return best;
   }
 
   // ---------- Génération ----------
@@ -283,15 +320,27 @@ class Brain {
     return null;
   }
 
-  /** Forme normalisée pour comparer une réponse au message de l'utilisateur. */
-  normalized(text) {
-    return text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
-  }
-
+  /**
+   * Un petit modèle de n-grammes ne « comprend » rien : le faire générer une
+   * réponse à une question ou à un sujet produisait des recombinaisons de
+   * bouts de phrases apprises qui ressemblent à des réponses sans en être
+   * (échos déformés du message précédent, salade de fragments Wikipédia sans
+   * rapport). La génération est donc retirée comme mécanisme de réponse —
+   * elle ne sert plus qu'en interne, pendant l'auto-entraînement, pour muscler
+   * le vocabulaire sans jamais être présentée comme une réponse à l'utilisateur.
+   *
+   * Ce qui reste, dans l'ordre :
+   *  1. petites conversations reconnues (salutations, politesse…) ;
+   *  2. affirmations personnelles (« mon chien s'appelle Rex ») : mémorisées,
+   *     accusées réception sans prétendre y répondre ;
+   *  3. tout le reste (question ou sujet évoqué sans syntaxe de question,
+   *     ex. « la théorie de la relativité générale ») : recherche d'un fait
+   *     appris et cité avec sa source, ou aveu honnête que le sujet est
+   *     inconnu — jamais de réponse inventée.
+   */
   reply(userText) {
     this.lastUnknown = false;
 
-    // Salutations et politesse : réponses dédiées, pas de génération.
     const small = this.smalltalk(userText);
     if (small) {
       this.learn(userText, 0.5);
@@ -300,46 +349,34 @@ class Brain {
 
     const isQ = this.isQuestion(userText);
 
-    // Les affirmations de l'utilisateur sont mémorisées comme des faits.
-    this.learn(userText, 1, isQ ? null : 'toi');
-
-    if (isQ) {
-      // Une question a une vraie réponse, ou aucune — jamais une réponse
-      // inventée. Générer via la chaîne de Markov quand on n'a pas de fait
-      // produit des réponses absurdes (recombinaisons de messages précédents
-      // qui ressemblent à des échos) : on préfère l'admettre honnêtement.
-      // Seuil bas volontairement : depuis que la génération n'est plus un
-      // filet de sécurité pour les questions, rater un fait qu'on connaît
-      // vraiment coûte plus cher (réponse « je ne sais pas » inutile) qu'une
-      // citation un peu large — la source reste toujours affichée.
-      const fact = this.recall(userText, 2);
-      if (fact) {
-        const intro = fact.source === 'toi'
-          ? 'Tu m\'avais dit : '
-          : `D'après ce que j'ai appris sur « ${fact.source} » : `;
-        return intro + fact.text;
-      }
-      this.lastUnknown = true;
-      const q = [
-        'Bonne question… je ne connais pas encore la réponse. Lance un entraînement sur ce sujet dans l\'onglet S\'entraîner et repose-la-moi !',
-        'Je n\'ai pas encore de souvenir là-dessus. Fais-moi étudier ce sujet et je saurai te répondre.',
-        'Hmm, ce sujet ne me dit rien pour l\'instant — entraîne-moi dessus et on en reparle !'
+    if (this.looksPersonal(userText) && !isQ) {
+      this.learn(userText, 1, 'toi');
+      const acks = [
+        'Merci de me le dire, je m\'en souviendrai !',
+        'Noté ! Ça m\'aide à mieux te connaître.',
+        'D\'accord, je garde ça en mémoire.',
+        'Compris, je retiens ça pour la suite.'
       ];
-      return q[Math.floor(Math.random() * q.length)];
+      return acks[Math.floor(Math.random() * acks.length)];
     }
 
-    // Message qui n'est pas une question : la génération reste acceptable
-    // (c'est de la conversation, pas une affirmation de fait), en refusant
-    // les réponses qui ne font que répéter le message reçu.
-    const userNorm = this.normalized(userText);
-    for (let attempt = 0; attempt < 8; attempt++) {
-      const gen = this.generate(userText);
-      if (!gen || gen.length < 4) continue;
-      const genNorm = this.normalized(gen.text);
-      if (genNorm === userNorm || genNorm.startsWith(userNorm) || userNorm.startsWith(genNorm)) continue;
-      return gen.text;
+    this.learn(userText, 1, null);
+    const fact = this.recall(userText);
+    if (fact) {
+      const intro = fact.source === 'toi'
+        ? 'Tu m\'avais dit : '
+        : `D'après ce que j'ai appris sur « ${fact.source} » : `;
+      return intro + fact.text;
     }
-    return FALLBACKS[Math.floor(Math.random() * FALLBACKS.length)];
+
+    // L'app interceptera ce signal pour chercher la réponse sur internet.
+    this.lastUnknown = true;
+    const q = [
+      'Bonne question… je ne connais pas encore la réponse. Lance un entraînement sur ce sujet dans l\'onglet S\'entraîner et repose-la-moi !',
+      'Je n\'ai pas encore de souvenir là-dessus. Fais-moi étudier ce sujet et je saurai te répondre.',
+      'Hmm, ce sujet ne me dit rien pour l\'instant — entraîne-moi dessus et on en reparle !'
+    ];
+    return q[Math.floor(Math.random() * q.length)];
   }
 
   // ---------- Auto-entraînement ----------
@@ -437,6 +474,30 @@ class Brain {
     this.stats.sentencesLearned = Math.max(this.stats.sentencesLearned, s.sentencesLearned || 0);
     this.stats.selfReinforced = Math.max(this.stats.selfReinforced, s.selfReinforced || 0);
     this.stats.confidence = Math.max(this.stats.confidence, s.confidence || 0);
+  }
+
+  // ---------- Paliers de progression ----------
+
+  textScore() {
+    const s = this.getStats();
+    return s.vocabSize + s.sentencesLearned * 2 + s.memories * 3 + s.epochs * 5;
+  }
+
+  /** Palier actuel + palier suivant, pour afficher une progression. */
+  getMilestone() {
+    const score = this.textScore();
+    let index = 0;
+    for (let i = 0; i < TEXT_TIERS.length; i++) {
+      if (score >= TEXT_TIERS[i].min) index = i;
+    }
+    const next = TEXT_TIERS[index + 1] || null;
+    return {
+      index, score,
+      name: TEXT_TIERS[index].name,
+      icon: TEXT_TIERS[index].icon,
+      next,
+      remaining: next ? next.min - score : 0
+    };
   }
 
   // ---------- Statistiques & persistance ----------

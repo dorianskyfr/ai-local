@@ -13,6 +13,17 @@
 
 const VISION_STORAGE_KEY = 'ai-local-vision-v1';
 
+// Paliers de progression internes et ludiques (voir la même remarque dans
+// brain.js) : pas une comparaison avec de vrais générateurs d'images.
+const IMAGE_TIERS = [
+  { min: 0,   name: 'Gribouillage',            icon: '🖍️' },
+  { min: 20,  name: 'Apprenti peintre',         icon: '🎨' },
+  { min: 60,  name: 'Coloriste',                icon: '🌈' },
+  { min: 150, name: 'Compositeur de scènes',    icon: '🖼️' },
+  { min: 350, name: 'Artiste confirmé',         icon: '🏆' },
+  { min: 700, name: 'Maître générateur',        icon: '✨' }
+];
+
 class Vision {
   constructor() {
     this.genome = this.randomGenome();
@@ -584,6 +595,28 @@ class Vision {
       recorder.start();
       draw();
     });
+  }
+
+  /* ---------- Paliers de progression ---------- */
+
+  imageScore() {
+    return this.stats.generations + this.stats.palettesLearned * 8 + Math.round(this.stats.bestScore * 50);
+  }
+
+  getMilestone() {
+    const score = this.imageScore();
+    let index = 0;
+    for (let i = 0; i < IMAGE_TIERS.length; i++) {
+      if (score >= IMAGE_TIERS[i].min) index = i;
+    }
+    const next = IMAGE_TIERS[index + 1] || null;
+    return {
+      index, score,
+      name: IMAGE_TIERS[index].name,
+      icon: IMAGE_TIERS[index].icon,
+      next,
+      remaining: next ? next.min - score : 0
+    };
   }
 
   /* ---------- Partage & persistance ---------- */

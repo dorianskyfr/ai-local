@@ -1,10 +1,10 @@
-# AI Local — v0.3
+# AI Local — v0.4
 
 Application de bureau (Windows `.exe`) avec une interface de chat façon ChatGPT / Claude,
 embarquant un **modèle d'IA local qui s'entraîne tout seul** — sur du texte via internet,
 et sur la génération d'images et de vidéos.
 
-![version](https://img.shields.io/badge/version-0.3.0-orange)
+![version](https://img.shields.io/badge/version-0.4.0-orange)
 
 ## ✨ Fonctionnalités
 
@@ -20,9 +20,11 @@ et sur la génération d'images et de vidéos.
   « fais une vidéo de l'océan » et il génère l'image ou la vidéo dans le chat.
 
 ### 🧠 Onglet « S'entraîner »
-- **Texte via internet** : le modèle étudie des articles Wikipédia — un
-  **sujet précis** que tu choisis, ou **n'importe quel sujet** (articles aléatoires)
-  si tu laisses le champ vide. Sans connexion, il se replie sur l'auto-entraînement local.
+- **Texte multi-sources en parallèle** : Wikipédia, Vikidia, Wikinews, Wiktionnaire,
+  Wikisource et les actualités (France Info, Le Monde) sont interrogés **en même temps**
+  à chaque cycle. Sujet précis au choix, ou n'importe quel sujet si le champ est vide.
+  Sans connexion, repli sur l'auto-entraînement local.
+- **YouTube** : colle un lien de vidéo comme sujet et le modèle apprend ses sous-titres.
 - **Génération d'images** : entraînement évolutionnaire — le module génère des images
   candidates, les note (harmonie, contraste, composition), garde les meilleures et fait
   muter ses paramètres, avec aperçu en direct.
@@ -35,9 +37,17 @@ et sur la génération d'images et de vidéos.
 - Toutes les images générées (chat et entraînement) sont conservées automatiquement,
   avec leur sujet en légende.
 
-### 🔒 Modèle persistant
+### 🔒 Modèle persistant et communautaire
 - Le modèle est sauvegardé automatiquement et retrouvé au prochain lancement.
 - **Il ne peut pas être réinitialisé** : tout ce qu'il apprend est conservé.
+- **Modèle communautaire** : au démarrage, l'app télécharge le modèle partagé publié
+  dans ce dépôt (`shared-model/model.json`) et le fusionne au sien ; aux grandes
+  avancées d'entraînement, il est republié (jeton GitHub requis). **Les conversations
+  ne sont jamais partagées.**
+
+### 🔄 Mises à jour automatiques
+- À chaque démarrage, l'app vérifie les releases GitHub et propose d'installer la
+  nouvelle version en un clic.
 
 ## 📦 Télécharger le `.exe`
 
@@ -49,6 +59,9 @@ Les `.exe` sont compilés automatiquement par GitHub Actions (workflow **Build W
 
 ## 📝 Notes de version
 
+- [v0.4.0](docs/releases/v0.4.0.md) — apprentissage multi-sources en parallèle
+  (+ YouTube), mises à jour automatiques, modèle communautaire sur GitHub,
+  chatbot plus malin.
 - [v0.3.0](docs/releases/v0.3.0.md) — conversations multiples, mémoire à long terme
   avec citation des sources, réponses en streaming, galerie.
 - [v0.2.0](docs/releases/v0.2.0.md) — onglet d'entraînement, apprentissage via internet,
@@ -75,8 +88,11 @@ npm run dist:win   # compile les .exe (sous Windows)
 - **Images / vidéos** (`renderer/vision.js`) : un « génome » de génération (palette,
   formes, symétrie, grain, dynamique) évolue par mutation ; à chaque cycle les
   candidats sont notés par des heuristiques esthétiques et le meilleur survit.
-- **Internet** (`renderer/trainer.js`) : API Wikipédia (fr) — article au hasard ou
-  recherche sur le sujet demandé.
+- **Internet** (`renderer/trainer.js`) : encyclopédies MediaWiki (Wikipédia, Vikidia,
+  Wikinews, Wiktionnaire, Wikisource), flux RSS d'actualités et sous-titres YouTube,
+  interrogés en parallèle.
+- **Communauté** (`renderer/shared.js`) : téléchargement/fusion du modèle partagé du
+  dépôt et publication des grandes avancées via l'API GitHub.
 
 ## 📁 Structure
 
@@ -89,7 +105,10 @@ renderer/
   app.js                 # logique UI, chat multimodal, centre d'entraînement
   brain.js               # modèle de langage local auto-apprenant
   vision.js              # génération d'images/vidéos auto-apprenante
-  trainer.js             # accès internet (Wikipédia)
+  trainer.js             # accès internet multi-sources
+  shared.js              # modèle communautaire (GitHub)
+shared-model/
+  model.json             # le modèle partagé par toutes les installations
 .github/workflows/
   build-windows.yml      # compilation du .exe + release sur GitHub Actions
 ```

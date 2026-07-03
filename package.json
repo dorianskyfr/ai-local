@@ -1,8 +1,8 @@
 {
   "name": "ai-local",
   "productName": "AI Local",
-  "version": "0.1.0",
-  "description": "Application de chat avec un modèle d'IA local qui s'entraîne tout seul",
+  "version": "0.2.0",
+  "description": "Application de chat avec un modèle d'IA local qui s'entraîne tout seul (texte, images, vidéos)",
   "main": "main.js",
   "author": "dorianskyfr",
   "license": "MIT",

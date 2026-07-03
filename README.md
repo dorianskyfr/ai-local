@@ -1,32 +1,42 @@
-# AI Local — v0.1
+# AI Local — v0.2
 
 Application de bureau (Windows `.exe`) avec une interface de chat façon ChatGPT / Claude,
-embarquant un **modèle d'IA 100 % local qui s'entraîne tout seul**.
+embarquant un **modèle d'IA local qui s'entraîne tout seul** — sur du texte via internet,
+et sur la génération d'images et de vidéos.
 
-![version](https://img.shields.io/badge/version-0.1.0-orange)
+![version](https://img.shields.io/badge/version-0.2.0-orange)
 
 ## ✨ Fonctionnalités
 
-- **Interface de chat** moderne (thème sombre, bulles, barre latérale, indicateur de frappe).
-- **Modèle d'IA local** : une chaîne de Markov d'ordre 2 (avec repli d'ordre 1) qui apprend
-  le vocabulaire et le style de tes messages. Aucune connexion internet, aucune API externe.
-- **Bouton d'auto-entraînement** : quand il est activé, le modèle tourne en boucle :
-  1. il consolide ce qu'il a appris de la conversation,
-  2. il génère des phrases candidates, les note, et **renforce les meilleures** (auto-renforcement),
-  3. il met à jour ses statistiques en direct (cycles, vocabulaire, transitions, confiance).
-- **Persistance** : le modèle est sauvegardé automatiquement et retrouvé au prochain lancement.
-- **Réinitialisation** possible du modèle en un clic.
+### 💬 Chat (vue par défaut)
+- Interface moderne : thème sombre, bulles, barre latérale, indicateur de frappe.
+- Le modèle apprend de chaque message que tu lui envoies.
+- **Multimodal** : demande-lui « dessine un coucher de soleil » ou
+  « fais une vidéo de l'océan » et il génère l'image ou la vidéo dans le chat.
+
+### 🧠 Onglet « S'entraîner »
+- **Texte via internet** : le modèle étudie des articles Wikipédia — un
+  **sujet précis** que tu choisis, ou **n'importe quel sujet** (articles aléatoires)
+  si tu laisses le champ vide. Sans connexion, il se replie sur l'auto-entraînement local.
+- **Génération d'images** : entraînement évolutionnaire — le module génère des images
+  candidates, les note (harmonie, contraste, composition), garde les meilleures et fait
+  muter ses paramètres, avec aperçu en direct.
+- **Génération de vidéos** : même principe, avec un aperçu animé ; les vidéos sont
+  encodées en WebM directement dans l'app.
+- Journal d'entraînement en direct et statistiques (cycles, vocabulaire, transitions,
+  générations, confiance).
+
+### 🔒 Modèle persistant
+- Le modèle est sauvegardé automatiquement et retrouvé au prochain lancement.
+- **Il ne peut pas être réinitialisé** : tout ce qu'il apprend est conservé.
 
 ## 📦 Télécharger le `.exe`
 
-Le `.exe` est compilé automatiquement par GitHub Actions (workflow **Build Windows .exe**) :
+Les `.exe` sont compilés automatiquement par GitHub Actions (workflow **Build Windows .exe**) :
 
-1. Onglet **Actions** du dépôt → dernier run vert → artefact `AI-Local-windows`.
-2. Deux fichiers sont produits :
-   - `AI-Local-0.1.0-portable.exe` — version portable, aucun install requis ;
-   - `AI Local Setup 0.1.0.exe` — installateur classique.
-
-Sur un tag `v0.1.0`, les `.exe` sont aussi attachés à une **Release GitHub**.
+- **Releases** : https://github.com/dorianskyfr/ai-local/releases —
+  `AI-Local-x.y.z-portable.exe` (aucune installation) et `AI Local Setup x.y.z.exe` (installateur).
+- Ou onglet **Actions** → dernier run vert → artefact `AI-Local-windows`.
 
 ## 🛠 Lancer en développement
 
@@ -38,14 +48,15 @@ npm run dist:win   # compile les .exe (sous Windows)
 
 ## 🧠 Comment le modèle apprend
 
-Le "cerveau" (`renderer/brain.js`) est un modèle de langage n-grammes :
-
-- chaque phrase est découpée en mots ; le modèle compte les transitions
-  `(mot1, mot2) → mot3` (bigrammes) et `mot → suivant` (unigrammes) ;
-- pour répondre, il part d'un mot de ton message et échantillonne mot à mot ;
-- en mode **auto-entraînement**, il génère ses propres phrases, calcule un score de
-  cohérence (probabilité moyenne de transition) et réinjecte les meilleures dans son
-  apprentissage — c'est ce qui le fait progresser tout seul, cycle après cycle.
+- **Texte** (`renderer/brain.js`) : chaîne de Markov d'ordre 2 (repli d'ordre 1).
+  Il compte les transitions `(mot1, mot2) → mot3`, génère mot à mot, note ses propres
+  phrases (probabilité moyenne de transition) et **renforce les meilleures** — c'est
+  l'auto-entraînement. L'onglet S'entraîner y ajoute la lecture d'articles Wikipédia.
+- **Images / vidéos** (`renderer/vision.js`) : un « génome » de génération (palette,
+  formes, symétrie, grain, dynamique) évolue par mutation ; à chaque cycle les
+  candidats sont notés par des heuristiques esthétiques et le meilleur survit.
+- **Internet** (`renderer/trainer.js`) : API Wikipédia (fr) — article au hasard ou
+  recherche sur le sujet demandé.
 
 ## 📁 Structure
 
@@ -53,12 +64,14 @@ Le "cerveau" (`renderer/brain.js`) est un modèle de langage n-grammes :
 main.js                  # processus principal Electron
 preload.js
 renderer/
-  index.html             # interface de chat
+  index.html             # interface : onglets Chat / S'entraîner
   style.css
-  app.js                 # logique UI + boucle d'entraînement
-  brain.js               # modèle d'IA local auto-apprenant
+  app.js                 # logique UI, chat multimodal, centre d'entraînement
+  brain.js               # modèle de langage local auto-apprenant
+  vision.js              # génération d'images/vidéos auto-apprenante
+  trainer.js             # accès internet (Wikipédia)
 .github/workflows/
-  build-windows.yml      # compilation du .exe sur GitHub Actions
+  build-windows.yml      # compilation du .exe + release sur GitHub Actions
 ```
 
 ## Licence

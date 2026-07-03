@@ -67,23 +67,16 @@ body {
   color: var(--text-dim); font-weight: 600;
 }
 
-.train-toggle {
-  display: flex; align-items: center; gap: 10px;
-  background: var(--bg-input); color: var(--text);
-  border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 12px; font-size: 14px; cursor: pointer;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
 .train-indicator {
   width: 10px; height: 10px; border-radius: 50%;
   background: var(--text-dim); flex-shrink: 0;
   transition: background 0.2s, box-shadow 0.2s;
 }
-.train-toggle.active {
+.train-start.active {
   border-color: var(--green);
   box-shadow: 0 0 12px rgba(61, 220, 132, 0.25);
 }
-.train-toggle.active .train-indicator {
+.train-start.active .train-indicator {
   background: var(--green);
   box-shadow: 0 0 8px var(--green);
   animation: pulse 1.2s ease-in-out infinite;
@@ -113,33 +106,113 @@ body {
   border-radius: 999px; transition: width 0.4s ease;
 }
 
-.training-log {
-  flex: 1; overflow-y: auto; min-height: 40px;
-  display: flex; flex-direction: column; gap: 6px;
-  font-size: 12px; color: var(--text-dim);
-}
-.training-log .log-entry {
-  background: var(--bg-input); border-radius: 8px; padding: 7px 9px;
-  border-left: 2px solid var(--green);
-  animation: slideIn 0.25s ease;
-}
 @keyframes slideIn {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-.sidebar-footer { display: flex; flex-direction: column; gap: 8px; }
-.reset-btn {
-  background: transparent; color: var(--text-dim);
-  border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 8px; font-size: 12px; cursor: pointer;
-}
-.reset-btn:hover { color: #ff6b6b; border-color: #ff6b6b; }
+.sidebar-footer { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
 .footer-note { font-size: 11px; color: var(--text-dim); line-height: 1.4; }
 
 /* ---------- Chat ---------- */
 
 .chat { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+/* ---------- Onglets ---------- */
+
+.tabs {
+  display: flex; gap: 4px;
+  padding: 10px 24px 0;
+  border-bottom: 1px solid var(--border);
+}
+.tab {
+  position: relative;
+  background: transparent; color: var(--text-dim);
+  border: none; border-bottom: 2px solid transparent;
+  padding: 10px 16px; font-size: 14px; cursor: pointer;
+  display: flex; align-items: center; gap: 7px;
+}
+.tab:hover { color: var(--text); }
+.tab.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+.tab-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--green); box-shadow: 0 0 6px var(--green);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.view { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.view[hidden] { display: none; }
+
+/* ---------- Centre d'entraînement ---------- */
+
+.training-page {
+  flex: 1; overflow-y: auto;
+  max-width: 760px; width: 100%;
+  margin: 0 auto; padding: 28px 24px;
+  display: flex; flex-direction: column; gap: 20px;
+}
+.training-header h2 { font-size: 22px; margin-bottom: 8px; }
+.training-header p { color: var(--text-dim); line-height: 1.55; }
+
+.training-controls {
+  background: var(--bg-input);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px; display: flex; flex-direction: column; gap: 12px;
+}
+.control-row { display: flex; align-items: center; gap: 12px; }
+.control-row label {
+  width: 70px; font-size: 13px; color: var(--text-dim); flex-shrink: 0;
+}
+.control-row select, .control-row input {
+  flex: 1; background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 9px 12px; font: inherit; font-size: 14px; outline: none;
+}
+.control-row select:focus, .control-row input:focus { border-color: var(--accent); }
+
+.train-start {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  background: var(--accent); color: white;
+  border: 1px solid transparent; border-radius: var(--radius);
+  padding: 12px; font-size: 15px; font-weight: 600; cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+.train-start.active { background: var(--bg-input); color: var(--text); }
+
+.training-live { display: flex; flex-direction: column; gap: 14px; }
+
+.training-preview-wrap { text-align: center; }
+.training-preview-wrap[hidden] { display: none; }
+#train-preview {
+  border-radius: var(--radius); border: 1px solid var(--border);
+  max-width: 100%;
+}
+.preview-caption { font-size: 12px; color: var(--text-dim); margin-top: 6px; }
+
+.train-feed {
+  display: flex; flex-direction: column; gap: 6px;
+  font-size: 13px; color: var(--text-dim);
+}
+.feed-empty { font-size: 13px; color: var(--text-dim); font-style: italic; }
+.log-entry {
+  background: var(--bg-input); border-radius: 8px; padding: 8px 11px;
+  border-left: 2px solid var(--green);
+  animation: slideIn 0.25s ease;
+  line-height: 1.45;
+}
+.log-entry.warn { border-left-color: var(--accent); }
+
+/* ---------- Médias générés ---------- */
+
+.generated-media {
+  display: block; margin-top: 10px;
+  max-width: 100%; border-radius: 10px;
+  border: 1px solid var(--border);
+}
 
 .messages {
   flex: 1; overflow-y: auto;
@@ -155,6 +228,7 @@ body {
 .welcome h1 { color: var(--text); font-size: 26px; margin-bottom: 10px; }
 .welcome p { line-height: 1.6; }
 .welcome strong { color: var(--text); }
+.welcome-tip { margin-top: 10px; font-size: 13px; color: var(--accent); }
 
 .message {
   display: flex; gap: 12px;

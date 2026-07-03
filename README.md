@@ -38,6 +38,12 @@ Les `.exe` sont compilés automatiquement par GitHub Actions (workflow **Build W
   `AI-Local-x.y.z-portable.exe` (aucune installation) et `AI Local Setup x.y.z.exe` (installateur).
 - Ou onglet **Actions** → dernier run vert → artefact `AI-Local-windows`.
 
+## 📝 Notes de version
+
+- [v0.2.0](docs/releases/v0.2.0.md) — onglet d'entraînement, apprentissage via internet,
+  génération d'images et de vidéos, modèle non réinitialisable.
+- [v0.1.0](docs/releases/v0.1.0.md) — première version : chat + modèle local auto-apprenant.
+
 ## 🛠 Lancer en développement
 
 ```bash

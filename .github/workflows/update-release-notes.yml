@@ -1,0 +1,34 @@
+name: Update release notes
+
+# Réapplique les patch notes de docs/releases/ aux releases GitHub existantes.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag de la release à mettre à jour (ex. v0.1.0) — vide = toutes"
+        required: false
+        default: ''
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for f in docs/releases/v*.md; do
+            tag=$(basename "$f" .md)
+            if [ -z "${{ inputs.tag }}" ] || [ "${{ inputs.tag }}" = "$tag" ]; then
+              if gh release edit "$tag" --notes-file "$f" --repo "$GITHUB_REPOSITORY"; then
+                echo "✔ Notes de $tag mises à jour."
+              else
+                echo "✖ Release $tag introuvable, ignorée."
+              fi
+            fi
+          done

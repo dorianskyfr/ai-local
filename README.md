@@ -1,10 +1,10 @@
-# AI Local — v0.4
+# AI Local — v0.5
 
 Application de bureau (Windows `.exe`) avec une interface de chat façon ChatGPT / Claude,
 embarquant un **modèle d'IA local qui s'entraîne tout seul** — sur du texte via internet,
 et sur la génération d'images et de vidéos.
 
-![version](https://img.shields.io/badge/version-0.4.0-orange)
+![version](https://img.shields.io/badge/version-0.5.0-orange)
 
 ## ✨ Fonctionnalités
 
@@ -17,7 +17,11 @@ et sur la génération d'images et de vidéos.
   messages ; pose-lui une question sur un sujet étudié et il répond en **citant sa
   source** (« D'après ce que j'ai appris sur “Volcan” : … »).
 - **Multimodal** : demande-lui « dessine un coucher de soleil » ou
-  « fais une vidéo de l'océan » et il génère l'image ou la vidéo dans le chat.
+  « fais une vidéo de l'océan » et il compose une vraie scène (ciel, soleil,
+  montagnes, vagues animées) colorée d'après de vraies photos du sujet.
+- **Recherche instantanée** : s'il ne connaît pas la réponse à une question, il
+  cherche immédiatement sur toutes les sources en parallèle, apprend et répond
+  avec le fait trouvé et sa source.
 
 ### 🧠 Onglet « S'entraîner »
 - **Texte multi-sources en parallèle** : Wikipédia, Vikidia, Wikinews, Wiktionnaire,
@@ -25,6 +29,9 @@ et sur la génération d'images et de vidéos.
   à chaque cycle. Sujet précis au choix, ou n'importe quel sujet si le champ est vide.
   Sans connexion, repli sur l'auto-entraînement local.
 - **YouTube** : colle un lien de vidéo comme sujet et le modèle apprend ses sous-titres.
+- **PDF** : colle un lien `.pdf` et il en extrait le texte pour apprendre.
+- **Vitesse réglable** : scan du PC (cœurs, mémoire) et vitesse recommandée ;
+  choix entre Éco, Normal, Rapide et Turbo.
 - **Génération d'images** : entraînement évolutionnaire — le module génère des images
   candidates, les note (harmonie, contraste, composition), garde les meilleures et fait
   muter ses paramètres, avec aperçu en direct.
@@ -49,6 +56,9 @@ et sur la génération d'images et de vidéos.
 - À chaque démarrage, l'app vérifie les releases GitHub et propose d'installer la
   nouvelle version en un clic.
 
+### 🎮 Discord
+- Rich Presence en option : « S'entraîne : les volcans » sur ton profil Discord.
+
 ## 📦 Télécharger le `.exe`
 
 Les `.exe` sont compilés automatiquement par GitHub Actions (workflow **Build Windows .exe**) :
@@ -59,6 +69,9 @@ Les `.exe` sont compilés automatiquement par GitHub Actions (workflow **Build W
 
 ## 📝 Notes de version
 
+- [v0.5.0](docs/releases/v0.5.0.md) — vitesse réglable avec scan du PC, recherche
+  instantanée quand il ne sait pas, PDF, palettes de vraies images, scènes générées,
+  Discord Rich Presence, jeton verrouillé.
 - [v0.4.0](docs/releases/v0.4.0.md) — apprentissage multi-sources en parallèle
   (+ YouTube), mises à jour automatiques, modèle communautaire sur GitHub,
   chatbot plus malin.

@@ -218,6 +218,13 @@ body {
 }
 .control-row select:focus, .control-row input:focus { border-color: var(--accent); }
 
+.pc-scan { font-size: 12px; color: var(--text-dim); }
+
+.searching-note {
+  margin-left: 8px; font-size: 12px; color: var(--accent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
 .train-start {
   display: flex; align-items: center; justify-content: center; gap: 10px;
   background: var(--accent); color: white;

@@ -263,6 +263,8 @@ class Brain {
   }
 
   reply(userText) {
+    this.lastUnknown = false;
+
     // Salutations et politesse : réponses dédiées, pas de génération.
     const small = this.smalltalk(userText);
     if (small) {
@@ -300,6 +302,8 @@ class Brain {
     }
 
     if (this.isQuestion(userText)) {
+      // L'app interceptera ce signal pour chercher la réponse sur internet.
+      this.lastUnknown = true;
       const q = [
         'Bonne question… je ne connais pas encore la réponse. Lance un entraînement sur ce sujet dans l\'onglet S\'entraîner et repose-la-moi !',
         'Je n\'ai pas encore de souvenir là-dessus. Fais-moi étudier ce sujet et je saurai te répondre.',

@@ -41,6 +41,134 @@ ipcMain.handle('net-fetch', async (_event, url) => {
   }
 });
 
+/*
+ * Extraction de texte d'un PDF du web, sans dépendance : on télécharge le
+ * fichier, on décompresse les flux (FlateDecode via zlib) et on récupère les
+ * chaînes des opérateurs texte (Tj / TJ). Couvre la majorité des PDF simples ;
+ * les PDF scannés (images) sont signalés comme illisibles.
+ */
+function extractPdfText(buffer) {
+  const zlib = require('zlib');
+  const raw = buffer.toString('latin1');
+  const chunks = [raw];
+  const streamRe = /stream\r?\n/g;
+  let m;
+  while ((m = streamRe.exec(raw)) !== null) {
+    const start = m.index + m[0].length;
+    const end = raw.indexOf('endstream', start);
+    if (end === -1) continue;
+    const slice = buffer.subarray(start, end);
+    try {
+      chunks.push(zlib.inflateSync(slice).toString('latin1'));
+    } catch (e) { /* flux non compressé ou image : ignoré */ }
+  }
+
+  const decode = (s) => s
+    .replace(/\\([nrtbf()\\])/g, (_, c) => ({ n: '\n', r: '', t: ' ', b: '', f: '', '(': '(', ')': ')', '\\': '\\' }[c]))
+    .replace(/\\(\d{1,3})/g, (_, oct) => String.fromCharCode(parseInt(oct, 8)));
+
+  const parts = [];
+  for (const chunk of chunks) {
+    const textOps = chunk.match(/\(((?:\\.|[^\\()])*)\)\s*Tj|\[((?:\\.|[^\]])*)\]\s*TJ/g);
+    if (!textOps) continue;
+    for (const op of textOps) {
+      const strings = op.match(/\(((?:\\.|[^\\()])*)\)/g) || [];
+      const text = strings.map(s => decode(s.slice(1, -1))).join('');
+      if (text.trim()) parts.push(text);
+    }
+  }
+  return parts.join(' ').replace(/\s+/g, ' ').trim();
+}
+
+ipcMain.handle('fetch-pdf-text', async (_event, url) => {
+  try {
+    const res = await fetch(url, { headers: { 'User-Agent': 'AI-Local' }, redirect: 'follow' });
+    if (!res.ok) return { ok: false, error: 'HTTP ' + res.status };
+    const buffer = Buffer.from(await res.arrayBuffer());
+    if (buffer.length > 25 * 1024 * 1024) return { ok: false, error: 'PDF trop volumineux (max 25 Mo)' };
+    const text = extractPdfText(buffer);
+    if (text.length < 120) {
+      return { ok: false, error: 'PDF illisible (probablement scanné ou trop complexe)' };
+    }
+    return { ok: true, text: text.slice(0, 12000) };
+  } catch (err) {
+    return { ok: false, error: String(err.message || err) };
+  }
+});
+
+/* ---------- Discord Rich Presence ---------- */
+
+/*
+ * Implémentation minimale du protocole IPC local de Discord (sans dépendance) :
+ * trames [opcode, longueur] + JSON sur le tube nommé discord-ipc-N.
+ */
+const discord = {
+  socket: null,
+  ready: false,
+  clientId: null,
+
+  frame(op, payload) {
+    const data = Buffer.from(JSON.stringify(payload));
+    const header = Buffer.alloc(8);
+    header.writeInt32LE(op, 0);
+    header.writeInt32LE(data.length, 4);
+    return Buffer.concat([header, data]);
+  },
+
+  ipcPath(i) {
+    if (process.platform === 'win32') return '\\\\.\\pipe\\discord-ipc-' + i;
+    const base = process.env.XDG_RUNTIME_DIR || process.env.TMPDIR || '/tmp';
+    return require('path').join(base, 'discord-ipc-' + i);
+  },
+
+  connect(clientId) {
+    if (this.socket && this.clientId === clientId) return;
+    this.disconnect();
+    this.clientId = clientId;
+    const net = require('net');
+    const tryPipe = (i) => {
+      if (i > 9) return;
+      const sock = net.createConnection(this.ipcPath(i), () => {
+        this.socket = sock;
+        sock.write(this.frame(0, { v: 1, client_id: clientId }));
+        this.ready = true;
+        if (this.pendingActivity) this.sendActivity(this.pendingActivity);
+      });
+      sock.on('error', () => { if (this.socket !== sock) tryPipe(i + 1); });
+      sock.on('close', () => { if (this.socket === sock) { this.socket = null; this.ready = false; } });
+    };
+    tryPipe(0);
+  },
+
+  sendActivity(activity) {
+    this.pendingActivity = activity;
+    if (!this.socket || !this.ready) return;
+    try {
+      this.socket.write(this.frame(1, {
+        cmd: 'SET_ACTIVITY',
+        args: { pid: process.pid, activity },
+        nonce: String(Date.now())
+      }));
+    } catch (e) { /* Discord fermé : silencieux */ }
+  },
+
+  disconnect() {
+    if (this.socket) { try { this.socket.destroy(); } catch (e) { /* déjà fermé */ } }
+    this.socket = null;
+    this.ready = false;
+  }
+};
+
+ipcMain.on('discord-presence', (_event, { clientId, details, state, startTimestamp }) => {
+  if (!clientId) { discord.disconnect(); return; }
+  discord.connect(clientId);
+  discord.sendActivity({
+    details: details || 'Discute avec son IA locale',
+    state: state || 'AI Local',
+    timestamps: startTimestamp ? { start: startTimestamp } : undefined
+  });
+});
+
 /* ---------- Mise à jour automatique ---------- */
 
 function isNewer(a, b) {

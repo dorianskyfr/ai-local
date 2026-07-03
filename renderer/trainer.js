@@ -16,7 +16,9 @@ const MEDIAWIKI_SOURCES = {
   vikidia:    { label: 'Vikidia',     api: 'https://fr.vikidia.org/w/api.php' },
   wikinews:   { label: 'Wikinews',    api: 'https://fr.wikinews.org/w/api.php' },
   wiktionary: { label: 'Wiktionnaire', api: 'https://fr.wiktionary.org/w/api.php' },
-  wikisource: { label: 'Wikisource',  api: 'https://fr.wikisource.org/w/api.php' }
+  wikisource: { label: 'Wikisource',  api: 'https://fr.wikisource.org/w/api.php' },
+  wikibooks:  { label: 'Wikibooks',   api: 'https://fr.wikibooks.org/w/api.php' },
+  wikiversity: { label: 'Wikiversité', api: 'https://fr.wikiversity.org/w/api.php' }
 };
 
 const RSS_FEEDS = [
@@ -26,8 +28,8 @@ const RSS_FEEDS = [
 
 // Ensemble utilisé par le mode « toutes les sources » (le Wiktionnaire et
 // Wikisource sont surtout utiles avec un sujet précis).
-const ALL_SOURCES_RANDOM = ['wikipedia', 'vikidia', 'wikinews', 'rss'];
-const ALL_SOURCES_TOPIC = ['wikipedia', 'vikidia', 'wikinews', 'wiktionary', 'wikisource', 'rss'];
+const ALL_SOURCES_RANDOM = ['wikipedia', 'vikidia', 'wikinews', 'wikibooks', 'rss'];
+const ALL_SOURCES_TOPIC = ['wikipedia', 'vikidia', 'wikinews', 'wiktionary', 'wikisource', 'wikibooks', 'wikiversity', 'rss'];
 
 async function nativeFetchText(url) {
   if (window.native && window.native.fetchText) {
@@ -141,6 +143,42 @@ async function fetchFromYouTube(videoUrl) {
   throw new Error('Cette vidéo n\'a pas de sous-titres accessibles');
 }
 
+/* ---------- Images réelles (Wikimedia Commons) ---------- */
+
+/** URLs de vignettes d'images libres sur un sujet, pour apprendre leurs palettes. */
+async function fetchCommonsImages(topic, limit = 4) {
+  const data = await wikiQuery('https://commons.wikimedia.org/w/api.php', {
+    generator: 'search',
+    gsrsearch: topic,
+    gsrnamespace: '6',
+    gsrlimit: String(limit + 2),
+    prop: 'imageinfo',
+    iiprop: 'url',
+    iiurlwidth: '160'
+  });
+  const pages = (data && data.query && data.query.pages) || {};
+  return Object.values(pages)
+    .map(p => p.imageinfo && p.imageinfo[0] && p.imageinfo[0].thumburl)
+    .filter(u => u && /\.(jpe?g|png)$/i.test(u))
+    .slice(0, limit);
+}
+
+/* ---------- PDF du web ---------- */
+
+function isPdfUrl(text) {
+  return /^https?:\/\/\S+\.pdf(\?\S*)?$/i.test((text || '').trim());
+}
+
+async function fetchFromPDF(url) {
+  if (!window.native || !window.native.fetchPdfText) {
+    throw new Error('La lecture de PDF nécessite l\'application de bureau');
+  }
+  const res = await window.native.fetchPdfText(url.trim());
+  if (!res.ok) throw new Error(res.error || 'PDF illisible');
+  const name = decodeURIComponent(url.split('/').pop().replace(/\.pdf.*/i, '').replace(/[-_]/g, ' '));
+  return { sourceLabel: 'PDF', title: name || 'Document PDF', extract: res.text };
+}
+
 /* ---------- Récupération en parallèle ---------- */
 
 /**
@@ -151,6 +189,7 @@ async function fetchBatch(sourceKeys, topic) {
   const jobs = sourceKeys.map(key => {
     if (key === 'rss') return fetchFromRSS(topic);
     if (key === 'youtube') return fetchFromYouTube(topic);
+    if (key === 'pdf') return fetchFromPDF(topic);
     return fetchFromMediaWiki(key, topic);
   });
   const settled = await Promise.allSettled(jobs);
@@ -165,9 +204,10 @@ async function fetchBatch(sourceKeys, topic) {
 
 /** Détermine les sources d'un cycle selon le choix de l'utilisateur et le sujet. */
 function resolveSources(choice, topic) {
+  if (isPdfUrl(topic)) return ['pdf'];
   if (youtubeVideoId(topic || '')) return ['youtube'];
   if (choice === 'all') return topic ? ALL_SOURCES_TOPIC : ALL_SOURCES_RANDOM;
   return [choice];
 }
 
-window.Trainer = { MEDIAWIKI_SOURCES, fetchBatch, resolveSources, youtubeVideoId };
+window.Trainer = { MEDIAWIKI_SOURCES, fetchBatch, resolveSources, youtubeVideoId, isPdfUrl, fetchCommonsImages };

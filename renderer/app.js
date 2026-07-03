@@ -1,8 +1,32 @@
 /* Logique de l'interface : onglets, conversations persistantes,
    chat multimodal en streaming, centre d'entraînement et galerie. */
 
-const TEXT_TRAIN_INTERVAL_MS = 5000;
-const MEDIA_TRAIN_INTERVAL_MS = 1500;
+// Vitesses d'apprentissage : intervalle entre cycles (texte / médias).
+const SPEEDS = {
+  eco:    { label: 'Éco',    text: 10000, media: 3000 },
+  normal: { label: 'Normal', text: 5000,  media: 1500 },
+  fast:   { label: 'Rapide', text: 2500,  media: 900 },
+  turbo:  { label: 'Turbo',  text: 1200,  media: 500 }
+};
+const SPEED_KEY = 'ai-local-speed';
+
+/** Scanne les capacités du PC et recommande une vitesse. */
+function scanPC() {
+  const cores = navigator.hardwareConcurrency || 2;
+  const memGo = navigator.deviceMemory || 4; // approximatif, plafonné à 8 par Chromium
+  let recommended = 'normal';
+  if (cores >= 8 && memGo >= 8) recommended = 'turbo';
+  else if (cores >= 6) recommended = 'fast';
+  else if (cores <= 2 || memGo <= 2) recommended = 'eco';
+  return { cores, memGo, recommended };
+}
+
+const pcInfo = scanPC();
+
+function currentSpeed() {
+  const key = localStorage.getItem(SPEED_KEY) || pcInfo.recommended;
+  return SPEEDS[key] ? key : 'normal';
+}
 const STREAM_WORD_MS = 45;
 const CONV_STORAGE_KEY = 'ai-local-conversations-v1';
 const GALLERY_STORAGE_KEY = 'ai-local-gallery-v1';
@@ -42,6 +66,12 @@ const topicInputEl = document.getElementById('topic-input');
 const shareStatusEl = document.getElementById('share-status');
 const githubTokenEl = document.getElementById('github-token');
 const tokenSaveBtn = document.getElementById('token-save');
+const trainSpeedEl = document.getElementById('train-speed');
+const pcScanEl = document.getElementById('pc-scan');
+const tokenNoteEl = document.getElementById('token-note');
+const discordAppIdEl = document.getElementById('discord-appid');
+const discordSaveBtn = document.getElementById('discord-save');
+const discordStatusEl = document.getElementById('discord-status');
 const trainStartBtn = document.getElementById('train-start');
 const trainStartLabel = trainStartBtn.querySelector('.train-start-label');
 const trainFeedEl = document.getElementById('train-feed');
@@ -335,13 +365,15 @@ const IMAGE_RE = /\b(dessine|dessine-moi|génère|genere|crée|cree|fais(?:-moi)
 const VIDEO_RE = /\b(vidéo|video|animation|clip|film)\b/i;
 
 function extractSubject(text) {
-  const m = text.match(/\b(?:de|d'|du|des|sur|d’)\s+(.{2,60})$/i);
+  // « fais une vidéo d'un volcan en éruption » → « volcan en éruption »
+  const m = text.match(/(?:\bde\b|\bdu\b|\bdes\b|\bsur\b|d'|d’)\s*(?:un\b|une\b|le\b|la\b|les\b|l'|l’)?\s*(.{2,60})$/i);
   if (m) return m[1].replace(/[.!?]+$/, '').trim();
   return text
     .replace(IMAGE_RE, '')
     .replace(VIDEO_RE, '')
     .replace(/\b(dessine|génère|genere|crée|cree|fais|moi|une?|le|la|les)\b/gi, '')
     .replace(/[.!?]+$/, '')
+    .replace(/\s+/g, ' ')
     .trim() || 'création libre';
 }
 
@@ -372,21 +404,22 @@ function handleSend() {
   if (wantsImage) {
     brain.learn(text);
     const subject = extractSubject(text);
-    setTimeout(() => {
+    // On étudie d'abord de vraies images du sujet pour des couleurs crédibles.
+    learnPalettesFromWeb(subject).catch(() => {}).then(() => {
       const dataUrl = vision.generateImage(subject);
       const caption = `Voici mon image pour « ${subject} » (génération ${vision.stats.generations}).`;
       done();
       renderImageMessage(caption, dataUrl);
       pushMessage({ role: 'ai', kind: 'image', text: caption, dataUrl });
       addToGallery(subject, dataUrl);
-    }, 500);
+    });
     return;
   }
 
   if (wantsVideo) {
     brain.learn(text);
     const subject = extractSubject(text);
-    vision.generateVideo(subject).then((blobUrl) => {
+    learnPalettesFromWeb(subject).catch(() => {}).then(() => vision.generateVideo(subject)).then((blobUrl) => {
       const caption = `Voici ma vidéo pour « ${subject} ».`;
       done();
       renderVideoMessage(caption, blobUrl);
@@ -398,9 +431,7 @@ function handleSend() {
     return;
   }
 
-  const delay = 300 + Math.random() * 500;
-  setTimeout(() => {
-    const answer = brain.reply(text);
+  const finishWith = (answer) => {
     typing.remove();
     streamTextMessage(answer, () => {
       pushMessage({ role: 'ai', kind: 'text', text: answer });
@@ -409,6 +440,35 @@ function handleSend() {
       sendBtn.disabled = false;
       inputEl.focus();
     });
+  };
+
+  const delay = 300 + Math.random() * 500;
+  setTimeout(async () => {
+    const answer = brain.reply(text);
+
+    // Question inconnue → recherche prioritaire sur toutes les sources en
+    // parallèle, apprentissage immédiat, puis vraie réponse.
+    if (brain.lastUnknown) {
+      const query = brain.keywords(text).join(' ');
+      if (query) {
+        typing.querySelector('.bubble').insertAdjacentHTML('beforeend',
+          '<span class="searching-note">🔎 je cherche sur internet…</span>');
+        try {
+          const { results } = await Trainer.fetchBatch(Trainer.resolveSources('all', query), query);
+          for (const r of results) brain.learn(r.extract, 1, r.title);
+          const fact = brain.recall(text, 2) || brain.recall(query, 2);
+          if (fact) {
+            finishWith(`Je viens de me renseigner ! D'après « ${fact.source} » : ${fact.text}`);
+            return;
+          }
+          if (results.length) {
+            finishWith(`J'ai étudié ${results.length} source(s) sur le sujet mais je n'ai pas trouvé de réponse claire. Reformule ta question, ou entraîne-moi plus longuement dessus !`);
+            return;
+          }
+        } catch (e) { /* hors ligne : on garde la réponse honnête */ }
+      }
+    }
+    finishWith(answer);
   }, delay);
 }
 
@@ -472,6 +532,33 @@ trainModeEl.addEventListener('change', () => {
   sourceRowEl.hidden = trainModeEl.value !== 'text';
 });
 
+/* ---------- Vitesse d'apprentissage (scan du PC) ---------- */
+
+for (const key in SPEEDS) {
+  const opt = document.createElement('option');
+  opt.value = key;
+  const s = SPEEDS[key];
+  opt.textContent = `${s.label} — 1 cycle toutes les ${(s.text / 1000).toLocaleString('fr-FR')} s`;
+  if (key === pcInfo.recommended) opt.textContent += ' (recommandé pour ton PC)';
+  trainSpeedEl.appendChild(opt);
+}
+trainSpeedEl.value = currentSpeed();
+pcScanEl.textContent = `🖥 Scan de ton PC : ${pcInfo.cores} cœurs, ~${pcInfo.memGo} Go de mémoire → vitesse recommandée : ${SPEEDS[pcInfo.recommended].label}.`;
+
+trainSpeedEl.addEventListener('change', () => {
+  localStorage.setItem(SPEED_KEY, trainSpeedEl.value);
+  // Si un entraînement tourne, on le recale sur la nouvelle cadence.
+  if (trainingTimer) {
+    const mode = trainModeEl.value;
+    clearInterval(trainingTimer);
+    trainingTimer = setInterval(
+      mode === 'text' ? textTrainingStep : mediaTrainingStep,
+      mode === 'text' ? SPEEDS[currentSpeed()].text : SPEEDS[currentSpeed()].media
+    );
+    feedEntry(`⚙ Vitesse d'apprentissage réglée sur ${SPEEDS[currentSpeed()].label}.`);
+  }
+});
+
 async function textTrainingStep() {
   if (trainingBusy) return;
   trainingBusy = true;
@@ -523,12 +610,38 @@ async function textTrainingStep() {
   trainingBusy = false;
 }
 
+let paletteFetchedFor = null;
+
+/** Apprend les palettes de vraies images du web (Wikimedia Commons) sur le sujet. */
+async function learnPalettesFromWeb(topic) {
+  if (!topic || paletteFetchedFor === topic) return;
+  paletteFetchedFor = topic;
+  try {
+    const urls = await Trainer.fetchCommonsImages(topic);
+    let learned = 0;
+    for (const url of urls) {
+      await new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => { if (vision.learnPaletteFromImage(topic, img)) learned += 1; resolve(); };
+        img.onerror = resolve;
+        img.src = url;
+      });
+    }
+    if (learned) {
+      feedEntry(`🖼 ${learned} vraie(s) image(s) du web étudiée(s) : j'ai appris les couleurs de « ${topic} ».`);
+    }
+  } catch (e) { /* hors ligne : le générateur garde ses palettes */ }
+}
+
 function mediaTrainingStep() {
   const result = vision.trainStep();
   feedEntry(`🎨 Génération ${result.generation} — ${result.evaluated} images évaluées, score ${(result.score * 100).toFixed(0)} %.`);
+  const topic = topicInputEl.value.trim();
+  if (topic) learnPalettesFromWeb(topic);
   // Un instantané rejoint la galerie régulièrement pour suivre les progrès.
   if (result.generation % 10 === 0) {
-    const subject = topicInputEl.value.trim() || 'entraînement libre';
+    const subject = topic || 'entraînement libre';
     addToGallery(`${subject} — génération ${result.generation}`, vision.generateImage(subject));
   }
   updateStats();
@@ -548,7 +661,7 @@ function startPreview(animated) {
   } else {
     previewAnim = setInterval(() => {
       vision.paint(ctx, previewCanvas.width, previewCanvas.height, vision.genome, subject(), 0);
-    }, MEDIA_TRAIN_INTERVAL_MS);
+    }, SPEEDS[currentSpeed()].media);
   }
 }
 
@@ -573,14 +686,20 @@ function startTraining() {
       ? `🚀 Entraînement lancé sur « ${topic} » — sources : ${labels}.`
       : `🚀 Entraînement lancé sur des sujets aléatoires — sources : ${labels}.`);
     textTrainingStep();
-    trainingTimer = setInterval(textTrainingStep, TEXT_TRAIN_INTERVAL_MS);
+    trainingTimer = setInterval(textTrainingStep, SPEEDS[currentSpeed()].text);
   } else {
     const label = mode === 'image' ? "la génération d'images" : 'la génération de vidéos';
     feedEntry(`🚀 Entraînement lancé sur ${label}${topic ? ` (thème : « ${topic} »)` : ''}.`);
     startPreview(mode === 'video');
     mediaTrainingStep();
-    trainingTimer = setInterval(mediaTrainingStep, MEDIA_TRAIN_INTERVAL_MS);
+    trainingTimer = setInterval(mediaTrainingStep, SPEEDS[currentSpeed()].media);
   }
+
+  const presenceTopic = topic || 'sujets aléatoires';
+  updatePresence(
+    mode === 'text' ? `S'entraîne : ${presenceTopic}` : `Apprend à générer des ${mode === 'image' ? 'images' : 'vidéos'}`,
+    `AI Local — vitesse ${SPEEDS[currentSpeed()].label}`
+  );
 }
 
 function stopTraining() {
@@ -589,6 +708,7 @@ function stopTraining() {
   stopPreview();
   setTrainingUI(false);
   feedEntry('⏹ Entraînement arrêté. Le modèle a conservé tout ce qu\'il a appris.');
+  updatePresence('Discute avec son IA locale', 'AI Local v0.5');
 }
 
 trainStartBtn.addEventListener('click', () => {
@@ -650,12 +770,56 @@ async function maybePublishSharedModel() {
   publishing = false;
 }
 
-githubTokenEl.value = Shared.getToken();
+/*
+ * Le modèle est open source et le même pour tout le monde : une fois un
+ * jeton enregistré, il est VERROUILLÉ — impossible de le retirer, la
+ * publication des grandes avancées est obligatoire.
+ */
+function refreshTokenUI() {
+  const locked = !!Shared.getToken();
+  githubTokenEl.disabled = locked;
+  tokenSaveBtn.disabled = locked;
+  tokenNoteEl.hidden = !locked;
+  if (locked) githubTokenEl.value = '••••••••••••••••';
+}
+
 tokenSaveBtn.addEventListener('click', () => {
-  Shared.setToken(githubTokenEl.value);
-  setShareStatus(Shared.getToken()
-    ? '✓ Jeton enregistré : les grandes avancées seront publiées sur GitHub.'
-    : 'Jeton retiré : le modèle est seulement téléchargé, plus publié.');
+  const value = githubTokenEl.value.trim();
+  if (!value || value.startsWith('•')) return;
+  Shared.setToken(value);
+  refreshTokenUI();
+  setShareStatus('✓ Jeton enregistré et verrouillé : les grandes avancées seront publiées sur GitHub.');
+});
+
+refreshTokenUI();
+
+/* ---------- Discord Rich Presence ---------- */
+
+const DISCORD_KEY = 'ai-local-discord-appid';
+const presenceStart = Date.now();
+
+function updatePresence(details, state) {
+  const clientId = (localStorage.getItem(DISCORD_KEY) || '').trim();
+  if (!clientId || !window.native || !window.native.discordPresence) return;
+  window.native.discordPresence({
+    clientId,
+    details,
+    state,
+    startTimestamp: Math.floor(presenceStart / 1000)
+  });
+}
+
+discordAppIdEl.value = localStorage.getItem(DISCORD_KEY) || '';
+discordSaveBtn.addEventListener('click', () => {
+  const id = discordAppIdEl.value.trim();
+  localStorage.setItem(DISCORD_KEY, id);
+  if (id) {
+    discordStatusEl.textContent = '✓ Présence activée (Discord doit être ouvert sur ce PC).';
+    updatePresence('Discute avec son IA locale', 'AI Local v0.5');
+  } else {
+    discordStatusEl.textContent = 'Présence désactivée.';
+    if (window.native && window.native.discordPresence) window.native.discordPresence({ clientId: '' });
+  }
 });
 
 /* ---------- Démarrage ---------- */
@@ -666,4 +830,5 @@ renderConversationList();
 renderMessages();
 updateStats();
 syncSharedModel();
+updatePresence('Discute avec son IA locale', 'AI Local v0.5');
 inputEl.focus();

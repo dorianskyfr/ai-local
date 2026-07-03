@@ -1,0 +1,293 @@
+/*
+ * Brain — modèle de langage local, léger et auto-apprenant.
+ *
+ * Le modèle est une chaîne de Markov d'ordre 2 avec repli sur l'ordre 1.
+ * Il apprend en continu à partir des messages de la conversation, et quand
+ * le mode auto-entraînement est activé, il tourne en boucle :
+ *   1. il relit l'historique et renforce les transitions observées,
+ *   2. il génère des phrases candidates, les note (probabilité moyenne de
+ *      transition) et renforce les meilleures (auto-renforcement),
+ *   3. il met à jour ses statistiques et se sauvegarde sur disque
+ *      (localStorage, persistant dans le profil de l'application).
+ */
+
+const STORAGE_KEY = 'ai-local-brain-v1';
+
+const SEED_CORPUS = [
+  "Bonjour, je suis une intelligence artificielle locale qui apprend toute seule.",
+  "Plus tu me parles, plus mon vocabulaire grandit et plus mes réponses s'améliorent.",
+  "Active le mode auto-entraînement pour que je m'entraîne en continu.",
+  "Je fonctionne entièrement sur ta machine, sans connexion internet.",
+  "Chaque message que tu m'envoies enrichit mon modèle de langage.",
+  "L'apprentissage automatique consiste à découvrir des motifs dans les données.",
+  "Une intelligence artificielle apprend en observant des exemples et en renforçant ce qui fonctionne.",
+  "Je peux générer des phrases nouvelles en combinant ce que j'ai appris.",
+  "Le renforcement augmente la probabilité des séquences de mots qui semblent cohérentes.",
+  "Mon cerveau est une chaîne de Markov qui prédit le mot suivant à partir des mots précédents.",
+  "N'hésite pas à me raconter des choses, je retiens tout ce que tu écris.",
+  "Avec le temps, mes réponses ressemblent de plus en plus à ta façon d'écrire."
+];
+
+const FALLBACKS = [
+  "Je suis encore en train d'apprendre… continue de me parler pour m'entraîner !",
+  "Mon vocabulaire est encore petit. Active l'auto-entraînement pour m'aider à progresser.",
+  "Intéressant ! Dis-m'en plus, chaque phrase m'aide à apprendre.",
+  "Je note tout ce que tu écris pour améliorer mes prochaines réponses."
+];
+
+class Brain {
+  constructor() {
+    // bigrams["mot1 mot2"] = { motSuivant: poids, ... }
+    // unigrams["mot"] = { motSuivant: poids, ... }
+    this.bigrams = {};
+    this.unigrams = {};
+    this.starts = {}; // premiers couples de mots des phrases
+    this.vocab = new Set();
+    this.stats = {
+      epochs: 0,          // cycles d'auto-entraînement effectués
+      sentencesLearned: 0,
+      selfReinforced: 0,  // phrases auto-générées puis renforcées
+      confidence: 0       // score moyen des dernières générations (0..1)
+    };
+    this.trainingLog = [];
+  }
+
+  // ---------- Apprentissage ----------
+
+  tokenize(text) {
+    return text
+      .toLowerCase()
+      .replace(/[«»"“”]/g, ' ')
+      .replace(/([.!?,;:])/g, ' $1 ')
+      .split(/\s+/)
+      .filter(Boolean);
+  }
+
+  learn(text, weight = 1) {
+    const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
+    for (const sentence of sentences) {
+      const tokens = this.tokenize(sentence);
+      if (tokens.length < 2) continue;
+
+      const startKey = tokens.length >= 2 ? tokens[0] + ' ' + tokens[1] : tokens[0];
+      this.starts[startKey] = (this.starts[startKey] || 0) + weight;
+
+      for (let i = 0; i < tokens.length; i++) {
+        this.vocab.add(tokens[i]);
+        if (i + 1 < tokens.length) {
+          this.bump(this.unigrams, tokens[i], tokens[i + 1], weight);
+        }
+        if (i + 2 < tokens.length) {
+          this.bump(this.bigrams, tokens[i] + ' ' + tokens[i + 1], tokens[i + 2], weight);
+        }
+      }
+      this.stats.sentencesLearned += 1;
+    }
+  }
+
+  bump(table, key, next, weight) {
+    if (!table[key]) table[key] = {};
+    table[key][next] = (table[key][next] || 0) + weight;
+  }
+
+  // ---------- Génération ----------
+
+  weightedPick(counts) {
+    let total = 0;
+    for (const k in counts) total += counts[k];
+    let r = Math.random() * total;
+    for (const k in counts) {
+      r -= counts[k];
+      if (r <= 0) return k;
+    }
+    return null;
+  }
+
+  pickStart(seedTokens) {
+    // Essaie de démarrer depuis un mot du message utilisateur.
+    if (seedTokens && seedTokens.length) {
+      const candidates = Object.keys(this.starts).filter(k => {
+        const [w1] = k.split(' ');
+        return seedTokens.includes(w1);
+      });
+      if (candidates.length) {
+        return candidates[Math.floor(Math.random() * candidates.length)].split(' ');
+      }
+      // Sinon, un bigramme quelconque contenant un mot du message.
+      const biKeys = Object.keys(this.bigrams).filter(k =>
+        k.split(' ').some(w => seedTokens.includes(w))
+      );
+      if (biKeys.length) {
+        return biKeys[Math.floor(Math.random() * biKeys.length)].split(' ');
+      }
+    }
+    const startKeys = Object.keys(this.starts);
+    if (!startKeys.length) return null;
+    return this.weightedPick(this.starts).split(' ');
+  }
+
+  generate(seedText = '', maxWords = 30) {
+    const seedTokens = seedText ? this.tokenize(seedText).filter(t => !/[.!?,;:]/.test(t)) : [];
+    const start = this.pickStart(seedTokens);
+    if (!start) return null;
+
+    const words = [...start];
+    let logProbSum = 0;
+    let steps = 0;
+
+    while (words.length < maxWords) {
+      const biKey = words[words.length - 2] + ' ' + words[words.length - 1];
+      let table = this.bigrams[biKey];
+      if (!table || Object.keys(table).length === 0) {
+        table = this.unigrams[words[words.length - 1]];
+      }
+      if (!table || Object.keys(table).length === 0) break;
+
+      const next = this.weightedPick(table);
+      if (!next) break;
+
+      let total = 0;
+      for (const k in table) total += table[k];
+      logProbSum += Math.log(table[next] / total);
+      steps += 1;
+
+      words.push(next);
+      if (/[.!?]/.test(next) && words.length > 6) break;
+    }
+
+    const score = steps > 0 ? Math.exp(logProbSum / steps) : 0;
+    return { text: this.detokenize(words), score, length: words.length };
+  }
+
+  detokenize(tokens) {
+    let out = '';
+    for (const t of tokens) {
+      if (/^[.!?,;:]$/.test(t)) out += t;
+      else out += (out ? ' ' : '') + t;
+    }
+    out = out.charAt(0).toUpperCase() + out.slice(1);
+    if (!/[.!?]$/.test(out)) out += '.';
+    return out;
+  }
+
+  reply(userText) {
+    this.learn(userText);
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const gen = this.generate(userText);
+      if (gen && gen.length >= 4) return gen.text;
+    }
+    return FALLBACKS[Math.floor(Math.random() * FALLBACKS.length)];
+  }
+
+  // ---------- Auto-entraînement ----------
+
+  /**
+   * Un cycle d'auto-entraînement :
+   *  - réapprend l'historique de conversation (consolidation),
+   *  - génère des phrases candidates et renforce les meilleures.
+   * Retourne un résumé du cycle pour l'affichage.
+   */
+  selfTrainStep(historyTexts = []) {
+    // 1. Consolidation : relecture de l'historique avec un poids faible.
+    for (const text of historyTexts) {
+      this.learn(text, 0.25);
+    }
+
+    // 2. Auto-génération + renforcement des meilleures phrases.
+    const candidates = [];
+    for (let i = 0; i < 6; i++) {
+      const gen = this.generate('', 24);
+      if (gen && gen.length >= 4) candidates.push(gen);
+    }
+    candidates.sort((a, b) => b.score - a.score);
+
+    let reinforced = 0;
+    let scoreSum = 0;
+    for (const c of candidates) scoreSum += c.score;
+    const keep = candidates.slice(0, Math.ceil(candidates.length / 3));
+    for (const c of keep) {
+      this.learn(c.text, 0.5); // renforcement des séquences jugées cohérentes
+      reinforced += 1;
+    }
+
+    this.stats.epochs += 1;
+    this.stats.selfReinforced += reinforced;
+    if (candidates.length) {
+      const avg = scoreSum / candidates.length;
+      // moyenne glissante pour lisser l'indicateur de confiance
+      this.stats.confidence = this.stats.confidence * 0.8 + avg * 0.2;
+    }
+
+    const summary = {
+      epoch: this.stats.epochs,
+      generated: candidates.length,
+      reinforced,
+      best: keep.length ? keep[0].text : null,
+      confidence: this.stats.confidence
+    };
+    this.trainingLog.unshift(summary);
+    if (this.trainingLog.length > 50) this.trainingLog.pop();
+    return summary;
+  }
+
+  // ---------- Statistiques & persistance ----------
+
+  getStats() {
+    let transitions = 0;
+    for (const k in this.bigrams) transitions += Object.keys(this.bigrams[k]).length;
+    return {
+      ...this.stats,
+      vocabSize: this.vocab.size,
+      transitions
+    };
+  }
+
+  save() {
+    try {
+      const data = {
+        bigrams: this.bigrams,
+        unigrams: this.unigrams,
+        starts: this.starts,
+        vocab: [...this.vocab],
+        stats: this.stats
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.warn('Sauvegarde du modèle impossible :', e);
+    }
+  }
+
+  load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return false;
+      const data = JSON.parse(raw);
+      this.bigrams = data.bigrams || {};
+      this.unigrams = data.unigrams || {};
+      this.starts = data.starts || {};
+      this.vocab = new Set(data.vocab || []);
+      this.stats = Object.assign(this.stats, data.stats || {});
+      return true;
+    } catch (e) {
+      console.warn('Chargement du modèle impossible :', e);
+      return false;
+    }
+  }
+
+  reset() {
+    this.bigrams = {};
+    this.unigrams = {};
+    this.starts = {};
+    this.vocab = new Set();
+    this.stats = { epochs: 0, sentencesLearned: 0, selfReinforced: 0, confidence: 0 };
+    this.trainingLog = [];
+    this.bootstrap();
+    this.save();
+  }
+
+  bootstrap() {
+    for (const line of SEED_CORPUS) this.learn(line);
+  }
+}
+
+window.Brain = Brain;

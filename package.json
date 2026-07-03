@@ -1,0 +1,44 @@
+{
+  "name": "ai-local",
+  "productName": "AI Local",
+  "version": "0.1.0",
+  "description": "Application de chat avec un modèle d'IA local qui s'entraîne tout seul",
+  "main": "main.js",
+  "author": "dorianskyfr",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win --x64"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "fr.dorianskyfr.ailocal",
+    "productName": "AI Local",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        { "target": "portable", "arch": ["x64"] },
+        { "target": "nsis", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false
+    },
+    "portable": {
+      "artifactName": "AI-Local-${version}-portable.exe"
+    }
+  }
+}

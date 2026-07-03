@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Local — v0.1</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+
+    <!-- Barre latérale -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <span class="logo-dot"></span>
+          <span class="logo-text">AI Local</span>
+          <span class="version-badge">v0.1</span>
+        </div>
+      </div>
+
+      <button id="new-chat-btn" class="new-chat-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Nouvelle conversation
+      </button>
+
+      <div class="sidebar-section">
+        <h3>Auto-entraînement</h3>
+        <button id="train-toggle" class="train-toggle" aria-pressed="false">
+          <span class="train-indicator"></span>
+          <span class="train-label">Activer l'entraînement</span>
+        </button>
+
+        <div class="stats">
+          <div class="stat-row"><span>Cycles</span><strong id="stat-epochs">0</strong></div>
+          <div class="stat-row"><span>Vocabulaire</span><strong id="stat-vocab">0</strong></div>
+          <div class="stat-row"><span>Transitions</span><strong id="stat-transitions">0</strong></div>
+          <div class="stat-row"><span>Phrases apprises</span><strong id="stat-sentences">0</strong></div>
+          <div class="stat-row"><span>Auto-renforcées</span><strong id="stat-reinforced">0</strong></div>
+          <div class="stat-row">
+            <span>Confiance</span>
+            <div class="confidence-bar"><div id="confidence-fill" class="confidence-fill"></div></div>
+          </div>
+        </div>
+
+        <div id="training-log" class="training-log" aria-live="polite"></div>
+      </div>
+
+      <div class="sidebar-footer">
+        <button id="reset-brain-btn" class="reset-btn">Réinitialiser le modèle</button>
+        <p class="footer-note">Modèle 100 % local — aucune donnée n'est envoyée en ligne.</p>
+      </div>
+    </aside>
+
+    <!-- Zone de chat -->
+    <main class="chat">
+      <div id="messages" class="messages">
+        <div class="welcome">
+          <div class="welcome-icon">✳</div>
+          <h1>Bonjour !</h1>
+          <p>Je suis une IA locale qui apprend toute seule. Parle-moi, puis active
+          le <strong>mode auto-entraînement</strong> dans la barre latérale pour
+          me voir progresser en continu.</p>
+        </div>
+      </div>
+
+      <div class="composer-wrap">
+        <form id="composer" class="composer">
+          <textarea id="input" rows="1" placeholder="Écris ton message…" autofocus></textarea>
+          <button type="submit" id="send-btn" class="send-btn" aria-label="Envoyer">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4Z"/></svg>
+          </button>
+        </form>
+        <p class="composer-hint">Entrée pour envoyer · Maj+Entrée pour un saut de ligne</p>
+      </div>
+    </main>
+
+  </div>
+
+  <script src="brain.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

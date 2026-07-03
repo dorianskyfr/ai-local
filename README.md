@@ -1,10 +1,10 @@
-# AI Local — v0.8
+# AI Local — v0.9
 
 Application de bureau (Windows `.exe`) avec une interface de chat façon ChatGPT / Claude,
 embarquant un **modèle d'IA local qui s'entraîne tout seul** — sur du texte via internet
 (y compris une recherche libre sur tout le web), et sur la génération d'images et de vidéos.
 
-![version](https://img.shields.io/badge/version-0.8.0-orange)
+![version](https://img.shields.io/badge/version-0.9.0-orange)
 
 ## ✨ Fonctionnalités
 
@@ -93,6 +93,9 @@ Les `.exe` sont compilés automatiquement par GitHub Actions (workflow **Build W
 
 ## 📝 Notes de version
 
+- [v0.9.0](docs/releases/v0.9.0.md) — rappel de faits enfin fiable avec une grosse
+  mémoire (garde-fou sur les mots jamais appris), contractions françaises séparées,
+  mode personnalisé assaini (anti-rebond, garde-fous numériques).
 - [v0.8.0](docs/releases/v0.8.0.md) — génération retirée comme mécanisme de
   réponse (plus jamais de charabia, question ou pas), rappel de faits par
   proportion de mots-clés, vitesse personnalisée, paliers de progression.
@@ -133,7 +136,9 @@ npm run dist:win   # compile les .exe (sous Windows)
   écarte les phrases de mauvaise qualité (listes de codes/lieux) à l'apprentissage.
 - **Mémoire** : les phrases apprises avec une source deviennent des « souvenirs » ;
   une question déclenche une recherche par mots-clés et le meilleur fait est cité
-  avec sa source.
+  avec sa source. Garde-fou anti-coïncidence : si la question contient un mot
+  distinctif jamais appris nulle part, aucune citation n'est proposée, même si
+  d'autres mots génériques coïncident par hasard avec un souvenir.
 - **Images / vidéos** (`renderer/vision.js`) : un « génome » de génération (palette,
   formes, symétrie, grain, dynamique) évolue par mutation ; à chaque cycle les
   candidats sont notés par des heuristiques esthétiques et le meilleur survit.

@@ -7,9 +7,23 @@ const SPEEDS = {
   normal:   { label: 'Normal',   text: 5000,  media: 1500 },
   fast:     { label: 'Rapide',   text: 2500,  media: 900 },
   turbo:    { label: 'Turbo',    text: 1200,  media: 500 },
-  ultimate: { label: 'Ultimate', text: 700,   media: 250, caution: true }
+  ultimate: { label: 'Ultimate', text: 700,   media: 250, caution: true },
+  eclair:   { label: 'Éclair',   text: 350,   media: 120, caution: true }
 };
 const SPEED_KEY = 'ai-local-speed';
+
+/*
+ * À vitesse Turbo et au-delà, le cycle d'affichage (consolidation locale,
+ * auto-renforcement) peut tourner très vite sans risque — c'est du calcul
+ * local. Les vraies requêtes réseau (Wikipédia, recherche web, etc.), elles,
+ * sont plafonnées à un intervalle minimum quel que soit le réglage : les
+ * marteler à 350 ms ferait bloquer les services publics gratuits (DuckDuckGo
+ * en particulier) pour tout le monde. Le cycle continue de tourner à la
+ * vitesse choisie ; seule la requête réseau est sautée si elle est trop
+ * récente.
+ */
+const NETWORK_MIN_INTERVAL_MS = 4000;
+let lastNetworkFetchAt = 0;
 
 /** Scanne les capacités du PC et recommande une vitesse. */
 function scanPC() {
@@ -566,46 +580,57 @@ async function textTrainingStep() {
   trainingBusy = true;
   const topic = topicInputEl.value.trim();
   const sources = Trainer.resolveSources(trainSourceEl.value, topic);
-  try {
-    const before = brain.getStats();
-    const { results, errors } = await Trainer.fetchBatch(sources, topic);
-    for (const r of results) {
-      const b = brain.getStats();
-      brain.learn(r.extract, 1, r.title);
-      const a = brain.getStats();
-      feedEntry(`📖 [${r.sourceLabel}] « ${r.title} » — +${a.sentencesLearned - b.sentencesLearned} phrases, +${a.memories - b.memories} souvenirs.`);
-      if (r.images && r.images.length) {
-        learnImagesPalette(topic || r.sourceLabel, r.images).then((n) => {
-          if (n) feedEntry(`🖼 ${n} image(s) de « ${r.sourceLabel} » apprise(s) pour les couleurs.`);
-        });
+
+  // Aux vitesses élevées, le cycle tourne vite mais les vraies requêtes
+  // réseau restent plafonnées (voir NETWORK_MIN_INTERVAL_MS) — les cycles
+  // « sautés » côté réseau font quand même tourner la consolidation locale.
+  const now = Date.now();
+  const canFetch = now - lastNetworkFetchAt >= NETWORK_MIN_INTERVAL_MS;
+
+  if (canFetch) {
+    lastNetworkFetchAt = now;
+    try {
+      const before = brain.getStats();
+      const { results, errors } = await Trainer.fetchBatch(sources, topic);
+      for (const r of results) {
+        const b = brain.getStats();
+        brain.learn(r.extract, 1, r.title);
+        const a = brain.getStats();
+        feedEntry(`📖 [${r.sourceLabel}] « ${r.title} » — +${a.sentencesLearned - b.sentencesLearned} phrases, +${a.memories - b.memories} souvenirs.`);
+        if (r.images && r.images.length) {
+          learnImagesPalette(topic || r.sourceLabel, r.images).then((n) => {
+            if (n) feedEntry(`🖼 ${n} image(s) de « ${r.sourceLabel} » apprise(s) pour les couleurs.`);
+          });
+        }
       }
-    }
-    if (results.length > 1) {
-      const after = brain.getStats();
-      feedEntry(`⚡ ${results.length} sources étudiées en parallèle — vocabulaire : ${after.vocabSize} mots (+${after.sentencesLearned - before.sentencesLearned} phrases ce cycle).`);
-    }
-    if (!results.length) {
-      if (errors.length) {
-        feedEntry(`⚠ ${errors[0].error} — je m'auto-entraîne en local en attendant.`, 'warn');
-      } else {
-        feedEntry(topic
-          ? `🔍 Rien trouvé sur « ${topic} », nouvel essai au prochain cycle…`
-          : '🔍 Articles vides, nouvel essai au prochain cycle…');
+      if (results.length > 1) {
+        const after = brain.getStats();
+        feedEntry(`⚡ ${results.length} sources étudiées en parallèle — vocabulaire : ${after.vocabSize} mots (+${after.sentencesLearned - before.sentencesLearned} phrases ce cycle).`);
       }
+      if (!results.length) {
+        if (errors.length) {
+          feedEntry(`⚠ ${errors[0].error} — je m'auto-entraîne en local en attendant.`, 'warn');
+        } else {
+          feedEntry(topic
+            ? `🔍 Rien trouvé sur « ${topic} », nouvel essai au prochain cycle…`
+            : '🔍 Articles vides, nouvel essai au prochain cycle…');
+        }
+      }
+      // Une vidéo YouTube s'apprend en une fois : inutile de boucler dessus.
+      if (sources.includes('youtube') && results.length) {
+        feedEntry('🎬 Sous-titres de la vidéo appris — entraînement terminé pour cette vidéo.');
+        brain.save();
+        updateStats();
+        stopTraining();
+        trainingBusy = false;
+        return;
+      }
+    } catch (e) {
+      feedEntry('⚠ Internet inaccessible — je m\'auto-entraîne en local en attendant.', 'warn');
     }
-    // Une vidéo YouTube s'apprend en une fois : inutile de boucler dessus.
-    if (sources.includes('youtube') && results.length) {
-      feedEntry('🎬 Sous-titres de la vidéo appris — entraînement terminé pour cette vidéo.');
-      brain.save();
-      updateStats();
-      stopTraining();
-      trainingBusy = false;
-      return;
-    }
-  } catch (e) {
-    feedEntry('⚠ Internet inaccessible — je m\'auto-entraîne en local en attendant.', 'warn');
   }
-  // Consolidation locale à chaque cycle, avec ou sans internet.
+
+  // Consolidation locale à chaque cycle, avec ou sans requête réseau ce tour-ci.
   const conv = currentConv();
   const summary = brain.selfTrainStep(conv.messages.slice(-10).map(m => m.text));
   if (summary.best) {
@@ -721,7 +746,7 @@ function stopTraining() {
   stopPreview();
   setTrainingUI(false);
   feedEntry('⏹ Entraînement arrêté. Le modèle a conservé tout ce qu\'il a appris.');
-  updatePresence('Discute avec son IA locale', 'AI Local v0.6');
+  updatePresence('Discute avec son IA locale', 'AI Local v0.7');
 }
 
 trainStartBtn.addEventListener('click', () => {
@@ -828,7 +853,7 @@ discordSaveBtn.addEventListener('click', () => {
   localStorage.setItem(DISCORD_KEY, id);
   if (id) {
     discordStatusEl.textContent = '✓ Présence activée (Discord doit être ouvert sur ce PC).';
-    updatePresence('Discute avec son IA locale', 'AI Local v0.6');
+    updatePresence('Discute avec son IA locale', 'AI Local v0.7');
   } else {
     discordStatusEl.textContent = 'Présence désactivée.';
     if (window.native && window.native.discordPresence) window.native.discordPresence({ clientId: '' });
@@ -843,5 +868,5 @@ renderConversationList();
 renderMessages();
 updateStats();
 syncSharedModel();
-updatePresence('Discute avec son IA locale', 'AI Local v0.6');
+updatePresence('Discute avec son IA locale', 'AI Local v0.7');
 inputEl.focus();

@@ -215,17 +215,9 @@ function decodeDuckDuckGoLink(href) {
   return m ? decodeURIComponent(m[1]) : href;
 }
 
-/**
- * Recherche libre sur tout le web (DuckDuckGo, sans clé) puis lit le meilleur
- * résultat. La page de résultats est une page HTML classique (pas une API) :
- * si sa structure change, on retombe sur un repli plus permissif plutôt que
- * d'échouer silencieusement.
- */
-async function fetchFromWebSearch(query) {
-  const html = await nativeFetchText('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(query));
+function extractResultLinks(html) {
   const doc = new DOMParser().parseFromString(html, 'text/html');
-
-  let links = [...doc.querySelectorAll('a.result__a')];
+  let links = [...doc.querySelectorAll('a.result__a, a.result-link')];
   if (!links.length) {
     // Repli : n'importe quel lien externe qui n'appartient pas à DuckDuckGo lui-même.
     links = [...doc.querySelectorAll('a[href]')].filter(a => {
@@ -233,16 +225,45 @@ async function fetchFromWebSearch(query) {
       return (isWebUrl(href) || href.includes('uddg=')) && !/(^|\/\/)([\w-]+\.)?duckduckgo\.com/i.test(decodeDuckDuckGoLink(href));
     });
   }
+  return links;
+}
 
-  for (const link of links.slice(0, 6)) {
-    const href = decodeDuckDuckGoLink(link.getAttribute('href') || '');
-    if (!isWebUrl(href) || isPdfUrl(href)) continue;
+/**
+ * Recherche libre sur tout le web (DuckDuckGo, sans clé) puis lit le meilleur
+ * résultat. Deux points d'entrée sont essayés (page « html » complète, puis
+ * la version « lite » plus simple) : si l'un change de structure ou bloque
+ * la requête, l'autre prend le relais plutôt que d'échouer silencieusement.
+ */
+async function fetchFromWebSearch(query) {
+  const endpoints = [
+    'https://html.duckduckgo.com/html/?q=',
+    'https://lite.duckduckgo.com/lite/?q='
+  ];
+  let lastError = null;
+
+  for (const endpoint of endpoints) {
+    let html;
     try {
-      const page = await fetchFromURL(href);
-      return { sourceLabel: page.sourceLabel, title: link.textContent.trim() || page.title, extract: page.extract, images: page.images };
-    } catch (e) { /* résultat illisible : on essaie le suivant */ }
+      html = await nativeFetchText(endpoint + encodeURIComponent(query));
+    } catch (e) {
+      lastError = e;
+      continue;
+    }
+    const links = extractResultLinks(html);
+    if (!links.length) {
+      lastError = new Error(html.length < 500 ? 'Réponse de recherche trop courte (possible blocage)' : 'Aucun lien de résultat trouvé sur la page');
+      continue;
+    }
+    for (const link of links.slice(0, 6)) {
+      const href = decodeDuckDuckGoLink(link.getAttribute('href') || '');
+      if (!isWebUrl(href) || isPdfUrl(href)) continue;
+      try {
+        const page = await fetchFromURL(href);
+        return { sourceLabel: page.sourceLabel, title: link.textContent.trim() || page.title, extract: page.extract, images: page.images };
+      } catch (e) { /* résultat illisible : on essaie le suivant */ }
+    }
   }
-  throw new Error(`Aucun résultat web exploitable pour « ${query} »`);
+  throw new Error(`Aucun résultat web exploitable pour « ${query} »${lastError ? ' (' + lastError.message + ')' : ''}`);
 }
 
 /* ---------- Autres plateformes vidéo (métadonnées uniquement) ---------- */

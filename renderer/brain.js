@@ -66,8 +66,24 @@ class Brain {
       .filter(Boolean);
   }
 
+  /**
+   * Filtre les phrases de mauvaise qualité (listes de lieux/codes postaux,
+   * fragments d'infobox, débris de mise en forme wiki) qui, une fois
+   * ingérées dans les n-grammes, produisent des réponses incohérentes du
+   * type « le mesnilbus1595- w: neuville-saint-rémy9740- ».
+   */
+  isLowQualitySentence(sentence) {
+    const letters = (sentence.match(/[a-zà-ÿ]/gi) || []).length;
+    const total = sentence.replace(/\s/g, '').length;
+    if (total === 0) return true;
+    if (letters / total < 0.6) return true; // trop de chiffres/symboles
+    if ((sentence.match(/\d{3,}/g) || []).length >= 3) return true; // plusieurs codes/nombres
+    if ((sentence.match(/-\s|\bw:/g) || []).length >= 3) return true; // listes à puces wiki
+    return false;
+  }
+
   learn(text, weight = 1, source = null) {
-    const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
+    const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0 && !this.isLowQualitySentence(s));
     for (const sentence of sentences) {
       const tokens = this.tokenize(sentence);
       if (tokens.length < 2) continue;
@@ -211,7 +227,7 @@ class Brain {
 
   isQuestion(text) {
     return text.includes('?') ||
-      /^(qui|que|quoi|comment|pourquoi|quand|combien|qu'est|qu’est|est-ce|c'est quoi|c’est quoi|parle-moi|raconte|explique|dis-moi)/i.test(text.trim());
+      /^(qui|que|quoi|comment|pourquoi|quand|combien|qu'est|qu’est|est-ce|c'est qui|c’est qui|c'est quoi|c’est quoi|parle-moi|raconte|explique|dis-moi)/i.test(text.trim());
   }
 
   // ---------- Petites conversations (salutations, politesse) ----------
@@ -254,6 +270,16 @@ class Brain {
     if (/(qui es[- ]tu|tu es qui|t'es qui|t’es qui|comment tu t'appelles|comment tu t’appelles|ton nom)/i.test(t)) {
       return `Je suis AI Local, une IA qui vit entièrement sur ta machine et qui apprend toute seule. J'ai déjà ${stats.vocabSize} mots de vocabulaire et ${stats.memories} souvenirs — et je progresse à chaque conversation.`;
     }
+    if (/(tu (fais|fait|fous|glandes) quoi|qu'est-ce que tu fais|que fais-tu)/i.test(t)) {
+      return pick([
+        `Je discute avec toi et j'écoute chaque mot pour enrichir mon modèle — ${stats.vocabSize} mots pour l'instant.`,
+        `Là, je t'écoute ! Je peux aussi étudier un sujet ou dessiner si tu me le demandes.`,
+        `Je réfléchis à ce que tu m'écris — c'est comme ça que j'apprends.`
+      ]);
+    }
+    if (/(c'est quoi discord|c'est quoi cette app|comment tu marches|comment tu fonctionnes)/i.test(t)) {
+      return `Je suis un petit modèle de langage (chaîne de Markov) qui tourne 100 % en local sur ta machine, sans envoyer tes messages nulle part. Je n'ai pas de vraie compréhension du monde — je retiens des mots-clés et des phrases que j'ai lus, et je m'en sers pour répondre.`;
+    }
     return null;
   }
 
@@ -272,37 +298,27 @@ class Brain {
       return small;
     }
 
-    // Les affirmations de l'utilisateur sont mémorisées comme des faits.
-    this.learn(userText, 1, this.isQuestion(userText) ? null : 'toi');
+    const isQ = this.isQuestion(userText);
 
-    // Pour une question, on consulte d'abord la mémoire à long terme.
-    if (this.isQuestion(userText)) {
-      const fact = this.recall(userText, 3);
+    // Les affirmations de l'utilisateur sont mémorisées comme des faits.
+    this.learn(userText, 1, isQ ? null : 'toi');
+
+    if (isQ) {
+      // Une question a une vraie réponse, ou aucune — jamais une réponse
+      // inventée. Générer via la chaîne de Markov quand on n'a pas de fait
+      // produit des réponses absurdes (recombinaisons de messages précédents
+      // qui ressemblent à des échos) : on préfère l'admettre honnêtement.
+      // Seuil bas volontairement : depuis que la génération n'est plus un
+      // filet de sécurité pour les questions, rater un fait qu'on connaît
+      // vraiment coûte plus cher (réponse « je ne sais pas » inutile) qu'une
+      // citation un peu large — la source reste toujours affichée.
+      const fact = this.recall(userText, 2);
       if (fact) {
         const intro = fact.source === 'toi'
           ? 'Tu m\'avais dit : '
           : `D'après ce que j'ai appris sur « ${fact.source} » : `;
         return intro + fact.text;
       }
-    }
-
-    // Génération, en refusant les réponses qui répètent le message reçu.
-    // Pour une question, la réponse doit au moins partager un mot-clé avec
-    // elle — sinon mieux vaut admettre qu'on ne sait pas.
-    const userNorm = this.normalized(userText);
-    const isQ = this.isQuestion(userText);
-    const qk = new Set(this.keywords(userText));
-    for (let attempt = 0; attempt < 8; attempt++) {
-      const gen = this.generate(userText);
-      if (!gen || gen.length < 4) continue;
-      const genNorm = this.normalized(gen.text);
-      if (genNorm === userNorm || genNorm.startsWith(userNorm) || userNorm.startsWith(genNorm)) continue;
-      if (isQ && qk.size && !this.keywords(gen.text).some(k => qk.has(k))) continue;
-      return gen.text;
-    }
-
-    if (this.isQuestion(userText)) {
-      // L'app interceptera ce signal pour chercher la réponse sur internet.
       this.lastUnknown = true;
       const q = [
         'Bonne question… je ne connais pas encore la réponse. Lance un entraînement sur ce sujet dans l\'onglet S\'entraîner et repose-la-moi !',
@@ -310,6 +326,18 @@ class Brain {
         'Hmm, ce sujet ne me dit rien pour l\'instant — entraîne-moi dessus et on en reparle !'
       ];
       return q[Math.floor(Math.random() * q.length)];
+    }
+
+    // Message qui n'est pas une question : la génération reste acceptable
+    // (c'est de la conversation, pas une affirmation de fait), en refusant
+    // les réponses qui ne font que répéter le message reçu.
+    const userNorm = this.normalized(userText);
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const gen = this.generate(userText);
+      if (!gen || gen.length < 4) continue;
+      const genNorm = this.normalized(gen.text);
+      if (genNorm === userNorm || genNorm.startsWith(userNorm) || userNorm.startsWith(genNorm)) continue;
+      return gen.text;
     }
     return FALLBACKS[Math.floor(Math.random() * FALLBACKS.length)];
   }

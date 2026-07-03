@@ -33,10 +33,20 @@ function createWindow() {
  */
 const MAX_FETCH_CHARS = 800000;
 
+// Un en-tête User-Agent générique ("AI-Local") fait rejeter la requête par
+// certains sites (pages HTML classiques, pas des API) qui filtrent les clients
+// non-navigateurs. On s'identifie donc comme un navigateur de bureau courant —
+// pratique standard pour un outil personnel qui lit des pages publiques,
+// sans contourner ni CAPTCHA ni limite d'authentification.
+const BROWSER_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7'
+};
+
 ipcMain.handle('net-fetch', async (_event, url) => {
   try {
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'AI-Local' },
+      headers: BROWSER_HEADERS,
       redirect: 'follow'
     });
     const text = await res.text();
@@ -91,7 +101,7 @@ function extractPdfText(buffer) {
 
 ipcMain.handle('fetch-pdf-text', async (_event, url) => {
   try {
-    const res = await fetch(url, { headers: { 'User-Agent': 'AI-Local' }, redirect: 'follow' });
+    const res = await fetch(url, { headers: BROWSER_HEADERS, redirect: 'follow' });
     if (!res.ok) return { ok: false, error: 'HTTP ' + res.status };
     const buffer = Buffer.from(await res.arrayBuffer());
     if (buffer.length > 25 * 1024 * 1024) return { ok: false, error: 'PDF trop volumineux (max 25 Mo)' };

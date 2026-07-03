@@ -1,10 +1,10 @@
-# AI Local — v0.6
+# AI Local — v0.7
 
 Application de bureau (Windows `.exe`) avec une interface de chat façon ChatGPT / Claude,
 embarquant un **modèle d'IA local qui s'entraîne tout seul** — sur du texte via internet
 (y compris une recherche libre sur tout le web), et sur la génération d'images et de vidéos.
 
-![version](https://img.shields.io/badge/version-0.6.0-orange)
+![version](https://img.shields.io/badge/version-0.7.0-orange)
 
 ## ✨ Fonctionnalités
 
@@ -22,6 +22,9 @@ embarquant un **modèle d'IA local qui s'entraîne tout seul** — sur du texte 
 - **Recherche instantanée** : s'il ne connaît pas la réponse à une question, il
   cherche immédiatement sur toutes les sources en parallèle, apprend et répond
   avec le fait trouvé et sa source.
+- **Jamais de réponse inventée à une question** : sans fait connu, le modèle
+  l'admet honnêtement au lieu de générer une phrase incohérente — une question
+  a une vraie réponse, ou aucune.
 
 ### 🧠 Onglet « S'entraîner »
 - **Texte multi-sources en parallèle** : Wikipédia, Vikidia, Wikinews, Wiktionnaire,
@@ -36,13 +39,15 @@ embarquant un **modèle d'IA local qui s'entraîne tout seul** — sur du texte 
   les sous-titres ; Vimeo/Dailymotion donnent titre et description (un modèle de
   texte local ne peut pas réellement « regarder » une vidéo — c'est honnête et limité).
 - **Vitesse réglable** : scan du PC (cœurs, mémoire) et vitesse recommandée ;
-  choix entre Éco, Normal, Rapide, Turbo et Ultimate.
+  choix entre Éco, Normal, Rapide, Turbo, Ultimate et Éclair. Le cycle d'affichage
+  peut tourner très vite, mais les vraies requêtes réseau restent plafonnées à une
+  toutes les 4 secondes pour ne jamais faire bloquer les services gratuits utilisés.
 - **Génération d'images** : entraînement évolutionnaire — le module génère des images
   candidates, les note (harmonie, contraste, composition), garde les meilleures et fait
   muter ses paramètres, avec aperçu en direct. Compose une scène différente selon le
   sujet (volcan, océan, forêt, espace, ou paysage par défaut).
-- **Génération de vidéos** : même principe, avec un aperçu animé ; les vidéos sont
-  encodées en WebM directement dans l'app.
+- **Génération de vidéos** : même principe, avec un aperçu animé et un léger mouvement
+  de caméra (zoom, travelling) pour un vrai rendu vidéo ; encodées en WebM dans l'app.
 - Journal d'entraînement en direct et statistiques (cycles, vocabulaire, souvenirs,
   générations, confiance).
 
@@ -78,6 +83,9 @@ Les `.exe` sont compilés automatiquement par GitHub Actions (workflow **Build W
 
 ## 📝 Notes de version
 
+- [v0.7.0](docs/releases/v0.7.0.md) — fini les réponses absurdes aux questions sans
+  réponse connue, filtre de qualité à l'apprentissage, recherche web fiabilisée,
+  vitesse Éclair, vidéos avec mouvement de caméra.
 - [v0.6.0](docs/releases/v0.6.0.md) — recherche libre sur tout le web, lecture de
   n'importe quelle page/PDF/vidéo, vitesse Ultimate, scènes générées repensées par
   archétype de sujet.
@@ -107,6 +115,9 @@ npm run dist:win   # compile les .exe (sous Windows)
   Il compte les transitions `(mot1, mot2) → mot3`, génère mot à mot, note ses propres
   phrases (probabilité moyenne de transition) et **renforce les meilleures** — c'est
   l'auto-entraînement. L'onglet S'entraîner y ajoute la lecture d'articles Wikipédia.
+  La génération n'est utilisée que pour la conversation informelle : une question sans
+  fait connu reçoit toujours une réponse honnête, jamais une phrase inventée. Un filtre
+  écarte les phrases de mauvaise qualité (listes de codes/lieux) à l'apprentissage.
 - **Mémoire** : les phrases apprises avec une source deviennent des « souvenirs » ;
   une question déclenche une recherche par mots-clés et le meilleur fait est cité
   avec sa source.

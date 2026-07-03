@@ -180,6 +180,19 @@ class Vision {
     const horizon = colors[1];
     const darkSky = sky.l < 38 || scene === 'space';
 
+    // Léger travelling caméra (zoom + dérive horizontale) pour que les
+    // vidéos donnent une vraie impression de mouvement plutôt qu'un décor
+    // fixe où seuls les éléments bougent. Toujours zoomé ≥ 1 pour ne jamais
+    // révéler de bord vide. Le texte du sujet est dessiné après restore(),
+    // donc reste net et fixe.
+    ctx.save();
+    const zoom = 1 + 0.045 * (0.5 + 0.5 * Math.sin(t * genome.flow * 0.12));
+    const panX = Math.sin(t * genome.flow * 0.07) * w * 0.018;
+    const panY = Math.cos(t * genome.flow * 0.05) * h * 0.012;
+    ctx.translate(w / 2, h / 2);
+    ctx.scale(zoom, zoom);
+    ctx.translate(-w / 2 + panX, -h / 2 + panY);
+
     // Ciel en dégradé
     const grad = ctx.createLinearGradient(0, 0, 0, h);
     if (scene === 'volcano') {
@@ -288,6 +301,8 @@ class Vision {
       }
       ctx.globalAlpha = 1;
     }
+
+    ctx.restore(); // fin du travelling caméra — le texte ci-dessous reste fixe
 
     // Signature du sujet
     if (subject) {

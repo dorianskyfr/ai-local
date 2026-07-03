@@ -1,10 +1,10 @@
-# AI Local — v0.7
+# AI Local — v0.8
 
 Application de bureau (Windows `.exe`) avec une interface de chat façon ChatGPT / Claude,
 embarquant un **modèle d'IA local qui s'entraîne tout seul** — sur du texte via internet
 (y compris une recherche libre sur tout le web), et sur la génération d'images et de vidéos.
 
-![version](https://img.shields.io/badge/version-0.7.0-orange)
+![version](https://img.shields.io/badge/version-0.8.0-orange)
 
 ## ✨ Fonctionnalités
 
@@ -22,9 +22,12 @@ embarquant un **modèle d'IA local qui s'entraîne tout seul** — sur du texte 
 - **Recherche instantanée** : s'il ne connaît pas la réponse à une question, il
   cherche immédiatement sur toutes les sources en parallèle, apprend et répond
   avec le fait trouvé et sa source.
-- **Jamais de réponse inventée à une question** : sans fait connu, le modèle
-  l'admet honnêtement au lieu de générer une phrase incohérente — une question
-  a une vraie réponse, ou aucune.
+- **Jamais de réponse inventée** : la génération n'est plus utilisée comme
+  mécanisme de réponse, qu'il s'agisse d'une question formelle ou d'un sujet
+  évoqué sans syntaxe de question — un fait connu cité avec sa source, ou un
+  aveu honnête qu'il ne sait pas, jamais une phrase inventée.
+- **Confidences personnelles reconnues** : « mon chien s'appelle Rex » reçoit
+  un accusé de réception chaleureux et reste en mémoire pour plus tard.
 
 ### 🧠 Onglet « S'entraîner »
 - **Texte multi-sources en parallèle** : Wikipédia, Vikidia, Wikinews, Wiktionnaire,
@@ -39,7 +42,8 @@ embarquant un **modèle d'IA local qui s'entraîne tout seul** — sur du texte 
   les sous-titres ; Vimeo/Dailymotion donnent titre et description (un modèle de
   texte local ne peut pas réellement « regarder » une vidéo — c'est honnête et limité).
 - **Vitesse réglable** : scan du PC (cœurs, mémoire) et vitesse recommandée ;
-  choix entre Éco, Normal, Rapide, Turbo, Ultimate et Éclair. Le cycle d'affichage
+  choix entre Éco, Normal, Rapide, Turbo, Ultimate, Éclair, ou **Personnalisée**
+  (curseurs cœurs/RAM qui calculent une cadence sur mesure). Le cycle d'affichage
   peut tourner très vite, mais les vraies requêtes réseau restent plafonnées à une
   toutes les 4 secondes pour ne jamais faire bloquer les services gratuits utilisés.
 - **Génération d'images** : entraînement évolutionnaire — le module génère des images
@@ -54,6 +58,12 @@ embarquant un **modèle d'IA local qui s'entraîne tout seul** — sur du texte 
 ### 🖼 Onglet « Galerie »
 - Toutes les images générées (chat et entraînement) sont conservées automatiquement,
   avec leur sujet en légende.
+
+### 🏆 Paliers de progression
+- Deux badges dans la barre latérale (Texte, Images) qui montent de niveau à mesure
+  que le modèle apprend, avec une notification à chaque palier franchi. Ce sont des
+  repères **internes et ludiques**, pas une comparaison avec de vrais modèles d'IA —
+  ce serait malhonnête pour un modèle de quelques Mo.
 
 ### 🔒 Modèle persistant et communautaire
 - Le modèle est sauvegardé automatiquement et retrouvé au prochain lancement.
@@ -83,6 +93,9 @@ Les `.exe` sont compilés automatiquement par GitHub Actions (workflow **Build W
 
 ## 📝 Notes de version
 
+- [v0.8.0](docs/releases/v0.8.0.md) — génération retirée comme mécanisme de
+  réponse (plus jamais de charabia, question ou pas), rappel de faits par
+  proportion de mots-clés, vitesse personnalisée, paliers de progression.
 - [v0.7.0](docs/releases/v0.7.0.md) — fini les réponses absurdes aux questions sans
   réponse connue, filtre de qualité à l'apprentissage, recherche web fiabilisée,
   vitesse Éclair, vidéos avec mouvement de caméra.
@@ -112,11 +125,11 @@ npm run dist:win   # compile les .exe (sous Windows)
 ## 🧠 Comment le modèle apprend
 
 - **Texte** (`renderer/brain.js`) : chaîne de Markov d'ordre 2 (repli d'ordre 1).
-  Il compte les transitions `(mot1, mot2) → mot3`, génère mot à mot, note ses propres
-  phrases (probabilité moyenne de transition) et **renforce les meilleures** — c'est
-  l'auto-entraînement. L'onglet S'entraîner y ajoute la lecture d'articles Wikipédia.
-  La génération n'est utilisée que pour la conversation informelle : une question sans
-  fait connu reçoit toujours une réponse honnête, jamais une phrase inventée. Un filtre
+  Il compte les transitions `(mot1, mot2) → mot3` et génère mot à mot en interne
+  pendant l'auto-entraînement (calibrage du vocabulaire), mais **la génération n'est
+  jamais utilisée pour répondre** : toute réponse vient soit d'une petite conversation
+  reconnue, soit d'un fait appris cité avec sa source (rappel par proportion de
+  mots-clés partagés, insensible aux accents), soit d'un aveu honnête. Un filtre
   écarte les phrases de mauvaise qualité (listes de codes/lieux) à l'apprentissage.
 - **Mémoire** : les phrases apprises avec une source deviennent des « souvenirs » ;
   une question déclenche une recherche par mots-clés et le meilleur fait est cité

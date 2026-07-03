@@ -29,7 +29,22 @@ const RSS_FEEDS = [
 // Ensemble utilisé par le mode « toutes les sources » (le Wiktionnaire et
 // Wikisource sont surtout utiles avec un sujet précis).
 const ALL_SOURCES_RANDOM = ['wikipedia', 'vikidia', 'wikinews', 'wikibooks', 'rss'];
-const ALL_SOURCES_TOPIC = ['wikipedia', 'vikidia', 'wikinews', 'wiktionary', 'wikisource', 'wikibooks', 'wikiversity', 'rss'];
+// « web » = recherche libre sur tout le web (DuckDuckGo), pas limitée aux
+// sources prédéfinies ci-dessus — seulement utile avec un sujet donné.
+const ALL_SOURCES_TOPIC = ['wikipedia', 'vikidia', 'wikinews', 'wiktionary', 'wikisource', 'wikibooks', 'wikiversity', 'rss', 'web'];
+
+const SOURCE_LABELS = {
+  rss: 'Actualités',
+  youtube: 'YouTube',
+  pdf: 'PDF',
+  web: 'Recherche web',
+  webpage: 'Page web',
+  'video-oembed': 'Vidéo (web)'
+};
+
+function sourceLabel(key) {
+  return (MEDIAWIKI_SOURCES[key] && MEDIAWIKI_SOURCES[key].label) || SOURCE_LABELS[key] || key;
+}
 
 async function nativeFetchText(url) {
   if (window.native && window.native.fetchText) {
@@ -163,6 +178,97 @@ async function fetchCommonsImages(topic, limit = 4) {
     .slice(0, limit);
 }
 
+/* ---------- N'importe quelle page web ---------- */
+
+function isWebUrl(text) {
+  return /^https?:\/\/\S+$/i.test((text || '').trim());
+}
+
+/** Extrait le texte lisible et les images d'une page HTML quelconque. */
+async function fetchFromURL(url) {
+  const clean = url.trim();
+  const html = await nativeFetchText(clean);
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  doc.querySelectorAll('script, style, noscript, nav, header, footer').forEach(el => el.remove());
+
+  const text = (doc.body ? doc.body.textContent : doc.documentElement.textContent || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (text.length < 150) {
+    throw new Error('Page trop courte ou illisible (contenu probablement généré par script)');
+  }
+
+  const title = (doc.querySelector('title')?.textContent || '').trim();
+  let domain = clean;
+  try { domain = new URL(clean).hostname.replace(/^www\./, ''); } catch (e) { /* garde l'URL brute */ }
+
+  const images = [...doc.querySelectorAll('img[src]')]
+    .map(img => { try { return new URL(img.getAttribute('src'), clean).href; } catch (e) { return null; } })
+    .filter(u => u && /\.(jpe?g|png|webp)(\?|$)/i.test(u))
+    .slice(0, 4);
+
+  return { sourceLabel: domain, title: title || domain, extract: text.slice(0, 6000), images };
+}
+
+function decodeDuckDuckGoLink(href) {
+  const m = href.match(/[?&]uddg=([^&]+)/);
+  return m ? decodeURIComponent(m[1]) : href;
+}
+
+/**
+ * Recherche libre sur tout le web (DuckDuckGo, sans clé) puis lit le meilleur
+ * résultat. La page de résultats est une page HTML classique (pas une API) :
+ * si sa structure change, on retombe sur un repli plus permissif plutôt que
+ * d'échouer silencieusement.
+ */
+async function fetchFromWebSearch(query) {
+  const html = await nativeFetchText('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(query));
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+
+  let links = [...doc.querySelectorAll('a.result__a')];
+  if (!links.length) {
+    // Repli : n'importe quel lien externe qui n'appartient pas à DuckDuckGo lui-même.
+    links = [...doc.querySelectorAll('a[href]')].filter(a => {
+      const href = a.getAttribute('href') || '';
+      return (isWebUrl(href) || href.includes('uddg=')) && !/(^|\/\/)([\w-]+\.)?duckduckgo\.com/i.test(decodeDuckDuckGoLink(href));
+    });
+  }
+
+  for (const link of links.slice(0, 6)) {
+    const href = decodeDuckDuckGoLink(link.getAttribute('href') || '');
+    if (!isWebUrl(href) || isPdfUrl(href)) continue;
+    try {
+      const page = await fetchFromURL(href);
+      return { sourceLabel: page.sourceLabel, title: link.textContent.trim() || page.title, extract: page.extract, images: page.images };
+    } catch (e) { /* résultat illisible : on essaie le suivant */ }
+  }
+  throw new Error(`Aucun résultat web exploitable pour « ${query} »`);
+}
+
+/* ---------- Autres plateformes vidéo (métadonnées uniquement) ---------- */
+
+function detectOEmbedPlatform(text) {
+  const t = (text || '').trim();
+  if (/vimeo\.com\/\d+/i.test(t)) return { name: 'Vimeo', endpoint: 'https://vimeo.com/api/oembed.json?url=' + encodeURIComponent(t) };
+  if (/dailymotion\.com\/video\/|dai\.ly\//i.test(t)) return { name: 'Dailymotion', endpoint: 'https://www.dailymotion.com/services/oembed?url=' + encodeURIComponent(t) };
+  return null;
+}
+
+/**
+ * Un modèle de texte local ne peut pas « regarder » une vidéo : on ne
+ * récupère que son titre et sa description publique (métadonnées), pas son
+ * contenu réel. Honnête et limité, mais mieux que rien pour ces plateformes.
+ */
+async function fetchFromVideoOEmbed(url) {
+  const platform = detectOEmbedPlatform(url);
+  if (!platform) throw new Error('Plateforme vidéo non reconnue');
+  const json = await nativeFetchText(platform.endpoint);
+  const data = JSON.parse(json);
+  const extract = `${data.title || 'Vidéo'}. ${data.author_name ? 'Par ' + data.author_name + '.' : ''} ${data.description || ''}`.trim();
+  if (extract.length < 20) throw new Error('Pas assez de métadonnées publiques pour cette vidéo');
+  return { sourceLabel: platform.name, title: data.title || platform.name, extract };
+}
+
 /* ---------- PDF du web ---------- */
 
 function isPdfUrl(text) {
@@ -190,6 +296,9 @@ async function fetchBatch(sourceKeys, topic) {
     if (key === 'rss') return fetchFromRSS(topic);
     if (key === 'youtube') return fetchFromYouTube(topic);
     if (key === 'pdf') return fetchFromPDF(topic);
+    if (key === 'web') return fetchFromWebSearch(topic);
+    if (key === 'webpage') return fetchFromURL(topic);
+    if (key === 'video-oembed') return fetchFromVideoOEmbed(topic);
     return fetchFromMediaWiki(key, topic);
   });
   const settled = await Promise.allSettled(jobs);
@@ -204,10 +313,16 @@ async function fetchBatch(sourceKeys, topic) {
 
 /** Détermine les sources d'un cycle selon le choix de l'utilisateur et le sujet. */
 function resolveSources(choice, topic) {
+  // Un lien collé dans le sujet prime toujours sur le menu déroulant.
   if (isPdfUrl(topic)) return ['pdf'];
   if (youtubeVideoId(topic || '')) return ['youtube'];
+  if (detectOEmbedPlatform(topic)) return ['video-oembed'];
+  if (isWebUrl(topic)) return ['webpage'];
   if (choice === 'all') return topic ? ALL_SOURCES_TOPIC : ALL_SOURCES_RANDOM;
   return [choice];
 }
 
-window.Trainer = { MEDIAWIKI_SOURCES, fetchBatch, resolveSources, youtubeVideoId, isPdfUrl, fetchCommonsImages };
+window.Trainer = {
+  MEDIAWIKI_SOURCES, fetchBatch, resolveSources, youtubeVideoId, isPdfUrl,
+  isWebUrl, fetchCommonsImages, sourceLabel
+};

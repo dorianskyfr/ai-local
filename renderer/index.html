@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Local — v0.5</title>
+  <title>AI Local — v0.6</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -15,7 +15,7 @@
         <div class="logo">
           <span class="logo-dot"></span>
           <span class="logo-text">AI Local</span>
-          <span class="version-badge">v0.5</span>
+          <span class="version-badge">v0.6</span>
         </div>
       </div>
 
@@ -47,12 +47,17 @@
       <div class="sidebar-section share-section">
         <h3>Modèle partagé</h3>
         <p id="share-status" class="share-status">Synchronisation…</p>
+        <p class="share-status">Téléchargement et fusion automatiques pour tout le
+        monde, sans exception, sans réglage.</p>
         <div class="share-token-row">
-          <input id="github-token" type="password" placeholder="Jeton GitHub (pour publier)">
+          <input id="github-token" type="password" placeholder="Jeton GitHub (pour publier tes avancées)">
           <button id="token-save" title="Enregistrer le jeton">✓</button>
         </div>
-        <p id="token-note" class="share-status" hidden>🔒 Jeton verrouillé — le modèle est
-        open source, la publication des avancées est obligatoire.</p>
+        <p id="token-note" class="share-status" hidden>🔒 Jeton verrouillé — publication
+        de tes avancées désormais obligatoire.</p>
+        <p class="share-status share-security-note" title="Un secret capable d'écrire sur GitHub ne peut pas être intégré à un exécutable public : il serait extractible et révoqué par la détection de fuite de GitHub, cassant le partage pour tout le monde. Chacun utilise son propre jeton gratuit (github.com/settings/tokens).">
+        ℹ Pas de jeton unique intégré (raison de sécurité — survole pour les détails) :
+        chacun utilise le sien, gratuit.</p>
       </div>
 
       <div class="sidebar-section share-section">
@@ -127,12 +132,13 @@
                 <option value="wikibooks">Wikibooks (manuels)</option>
                 <option value="wikiversity">Wikiversité (cours)</option>
                 <option value="rss">Actualités (France Info, Le Monde)</option>
+                <option value="web">🔎 Recherche libre sur tout le web (DuckDuckGo)</option>
               </select>
             </div>
             <div class="control-row">
               <label for="topic-input">Sujet</label>
               <input id="topic-input" type="text"
-                     placeholder="Sujet précis, lien YouTube (sous-titres) ou lien .pdf — vide = n'importe quel sujet">
+                     placeholder="Sujet, ou un lien (page web, PDF, YouTube, Vimeo…) — vide = n'importe quel sujet">
             </div>
             <div class="control-row">
               <label for="train-speed">Vitesse</label>

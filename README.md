@@ -1,10 +1,10 @@
-# AI Local — v0.5
+# AI Local — v0.6
 
 Application de bureau (Windows `.exe`) avec une interface de chat façon ChatGPT / Claude,
-embarquant un **modèle d'IA local qui s'entraîne tout seul** — sur du texte via internet,
-et sur la génération d'images et de vidéos.
+embarquant un **modèle d'IA local qui s'entraîne tout seul** — sur du texte via internet
+(y compris une recherche libre sur tout le web), et sur la génération d'images et de vidéos.
 
-![version](https://img.shields.io/badge/version-0.5.0-orange)
+![version](https://img.shields.io/badge/version-0.6.0-orange)
 
 ## ✨ Fonctionnalités
 
@@ -25,16 +25,22 @@ et sur la génération d'images et de vidéos.
 
 ### 🧠 Onglet « S'entraîner »
 - **Texte multi-sources en parallèle** : Wikipédia, Vikidia, Wikinews, Wiktionnaire,
-  Wikisource et les actualités (France Info, Le Monde) sont interrogés **en même temps**
-  à chaque cycle. Sujet précis au choix, ou n'importe quel sujet si le champ est vide.
-  Sans connexion, repli sur l'auto-entraînement local.
-- **YouTube** : colle un lien de vidéo comme sujet et le modèle apprend ses sous-titres.
-- **PDF** : colle un lien `.pdf` et il en extrait le texte pour apprendre.
+  Wikisource, Wikibooks, Wikiversité et les actualités (France Info, Le Monde) sont
+  interrogés **en même temps** à chaque cycle. Sujet précis au choix, ou n'importe
+  quel sujet si le champ est vide. Sans connexion, repli sur l'auto-entraînement local.
+- **Recherche libre sur tout le web** : une source « Recherche libre » (DuckDuckGo)
+  n'est pas limitée aux sources prédéfinies — le modèle trouve une page pertinente
+  et en apprend le texte, comme les autres sources, en parallèle.
+- **N'importe quelle page, un PDF, YouTube, Vimeo, Dailymotion** : colle n'importe
+  quel lien dans le champ Sujet. Pages web et PDF sont lus en entier ; YouTube donne
+  les sous-titres ; Vimeo/Dailymotion donnent titre et description (un modèle de
+  texte local ne peut pas réellement « regarder » une vidéo — c'est honnête et limité).
 - **Vitesse réglable** : scan du PC (cœurs, mémoire) et vitesse recommandée ;
-  choix entre Éco, Normal, Rapide et Turbo.
+  choix entre Éco, Normal, Rapide, Turbo et Ultimate.
 - **Génération d'images** : entraînement évolutionnaire — le module génère des images
   candidates, les note (harmonie, contraste, composition), garde les meilleures et fait
-  muter ses paramètres, avec aperçu en direct.
+  muter ses paramètres, avec aperçu en direct. Compose une scène différente selon le
+  sujet (volcan, océan, forêt, espace, ou paysage par défaut).
 - **Génération de vidéos** : même principe, avec un aperçu animé ; les vidéos sont
   encodées en WebM directement dans l'app.
 - Journal d'entraînement en direct et statistiques (cycles, vocabulaire, souvenirs,
@@ -48,9 +54,12 @@ et sur la génération d'images et de vidéos.
 - Le modèle est sauvegardé automatiquement et retrouvé au prochain lancement.
 - **Il ne peut pas être réinitialisé** : tout ce qu'il apprend est conservé.
 - **Modèle communautaire** : au démarrage, l'app télécharge le modèle partagé publié
-  dans ce dépôt (`shared-model/model.json`) et le fusionne au sien ; aux grandes
-  avancées d'entraînement, il est republié (jeton GitHub requis). **Les conversations
-  ne sont jamais partagées.**
+  dans ce dépôt (`shared-model/model.json`) et le fusionne au sien — **automatique
+  pour tout le monde, sans exception, sans réglage**. Publier ses propres avancées
+  demande un jeton GitHub personnel (verrouillé une fois enregistré) : il n'y a pas
+  de jeton unique intégré à l'app, un secret d'écriture dans un exécutable public
+  serait extractible par n'importe qui et révoqué par la détection de fuite de
+  GitHub. **Les conversations ne sont jamais partagées.**
 
 ### 🔄 Mises à jour automatiques
 - À chaque démarrage, l'app vérifie les releases GitHub et propose d'installer la
@@ -69,6 +78,9 @@ Les `.exe` sont compilés automatiquement par GitHub Actions (workflow **Build W
 
 ## 📝 Notes de version
 
+- [v0.6.0](docs/releases/v0.6.0.md) — recherche libre sur tout le web, lecture de
+  n'importe quelle page/PDF/vidéo, vitesse Ultimate, scènes générées repensées par
+  archétype de sujet.
 - [v0.5.0](docs/releases/v0.5.0.md) — vitesse réglable avec scan du PC, recherche
   instantanée quand il ne sait pas, PDF, palettes de vraies images, scènes générées,
   Discord Rich Presence, jeton verrouillé.
@@ -101,9 +113,9 @@ npm run dist:win   # compile les .exe (sous Windows)
 - **Images / vidéos** (`renderer/vision.js`) : un « génome » de génération (palette,
   formes, symétrie, grain, dynamique) évolue par mutation ; à chaque cycle les
   candidats sont notés par des heuristiques esthétiques et le meilleur survit.
-- **Internet** (`renderer/trainer.js`) : encyclopédies MediaWiki (Wikipédia, Vikidia,
-  Wikinews, Wiktionnaire, Wikisource), flux RSS d'actualités et sous-titres YouTube,
-  interrogés en parallèle.
+- **Internet** (`renderer/trainer.js`) : encyclopédies MediaWiki, flux RSS d'actualités,
+  sous-titres YouTube, métadonnées Vimeo/Dailymotion, PDF, n'importe quelle page web et
+  recherche libre (DuckDuckGo), interrogés en parallèle.
 - **Communauté** (`renderer/shared.js`) : téléchargement/fusion du modèle partagé du
   dépôt et publication des grandes avancées via l'API GitHub.
 

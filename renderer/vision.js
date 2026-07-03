@@ -73,6 +73,16 @@ class Vision {
       .filter(w => w.length >= 4);
   }
 
+  /** Choisit un archétype de scène selon des mots-clés du sujet. */
+  sceneType(subject) {
+    const s = (subject || '').toLowerCase();
+    if (/volcan|lave|lava|[ée]ruption|magma/.test(s)) return 'volcano';
+    if (/oc[ée]an|\bmer\b|vague|plage|surf|\b[îi]le\b/.test(s)) return 'ocean';
+    if (/for[êe]t|arbre|jungle|\bbois\b/.test(s)) return 'forest';
+    if (/espace|galaxie|[ée]toile|n[ée]buleuse|plan[èe]te|cosmos|univers/.test(s)) return 'space';
+    return 'default';
+  }
+
   /* ---------- Palettes apprises sur de vraies images ---------- */
 
   /** Extrait les couleurs dominantes d'une image déjà dessinée sur un canvas. */
@@ -165,59 +175,291 @@ class Vision {
   paint(ctx, w, h, genome, subject, t = 0) {
     const rand = this.seedFromSubject(subject || 'création libre');
     const colors = this.paletteFor(subject, genome, rand);
+    const scene = this.sceneType(subject);
     const sky = colors[0];
     const horizon = colors[1];
-    const darkSky = sky.l < 38;
+    const darkSky = sky.l < 38 || scene === 'space';
 
     // Ciel en dégradé
     const grad = ctx.createLinearGradient(0, 0, 0, h);
-    grad.addColorStop(0, this.hsl(sky));
-    grad.addColorStop(0.72, this.hsl(horizon, 1, 6));
-    grad.addColorStop(1, this.hsl(colors[2], 1, -6));
+    if (scene === 'volcano') {
+      grad.addColorStop(0, this.hsl(sky, 1, -6));
+      grad.addColorStop(0.6, this.hsl({ h: 14, s: 55, l: 22 }));
+      grad.addColorStop(1, this.hsl({ h: 8, s: 40, l: 10 }));
+    } else {
+      grad.addColorStop(0, this.hsl(sky));
+      grad.addColorStop(0.72, this.hsl(horizon, 1, 6));
+      grad.addColorStop(1, this.hsl(colors[2], 1, -6));
+    }
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
 
-    // Étoiles (ciel sombre) qui scintillent
+    // Étoiles / poussière cosmique qui scintillent
     if (darkSky) {
-      for (let i = 0; i < 60; i++) {
-        const sx = rand() * w, sy = rand() * h * 0.55;
+      const starCount = scene === 'space' ? 140 : 60;
+      for (let i = 0; i < starCount; i++) {
+        const sx = rand() * w, sy = rand() * h * (scene === 'space' ? 0.92 : 0.55);
         const tw = 0.4 + 0.6 * Math.abs(Math.sin(t * 2 + i));
+        const size = scene === 'space' && rand() > 0.88 ? 2.4 : 1.5;
         ctx.globalAlpha = tw * 0.9;
         ctx.fillStyle = '#fff';
-        ctx.fillRect(sx, sy, 1.6, 1.6);
+        ctx.fillRect(sx, sy, size, size);
       }
       ctx.globalAlpha = 1;
     }
 
-    // Soleil / lune avec halo, pulsation douce
-    const sunX = (0.2 + rand() * 0.6) * w;
-    const sunY = (0.16 + rand() * 0.26) * h;
-    const sunR = (0.07 + rand() * 0.05) * Math.min(w, h) * (1 + 0.04 * Math.sin(t * genome.flow));
-    const warm = darkSky ? { h: 48, s: 18, l: 88 } : { h: 42, s: 92, l: 68 };
-    const halo = ctx.createRadialGradient(sunX, sunY, sunR * 0.4, sunX, sunY, sunR * 3);
-    halo.addColorStop(0, this.hsl(warm, 0.85));
-    halo.addColorStop(1, this.hsl(warm, 0));
-    ctx.fillStyle = halo;
-    ctx.fillRect(sunX - sunR * 3, sunY - sunR * 3, sunR * 6, sunR * 6);
-    ctx.fillStyle = this.hsl(warm);
+    if (scene === 'space') {
+      this.paintSpaceSky(ctx, w, h, colors, rand, t);
+    } else {
+      // Soleil / lune avec halo, pulsation douce
+      const sunX = scene === 'ocean' ? w * 0.5 : (0.2 + rand() * 0.6) * w;
+      const sunY = scene === 'ocean' ? h * 0.4 : (0.16 + rand() * 0.26) * h;
+      const sunR = (0.07 + rand() * 0.05) * Math.min(w, h) * (1 + 0.04 * Math.sin(t * genome.flow));
+      const warm = darkSky
+        ? { h: 48, s: 18, l: 88 }
+        : { h: scene === 'volcano' ? 22 : 42, s: scene === 'volcano' ? 95 : 92, l: 66 };
+      const halo = ctx.createRadialGradient(sunX, sunY, sunR * 0.4, sunX, sunY, sunR * 3);
+      halo.addColorStop(0, this.hsl(warm, 0.85));
+      halo.addColorStop(1, this.hsl(warm, 0));
+      ctx.fillStyle = halo;
+      ctx.fillRect(sunX - sunR * 3, sunY - sunR * 3, sunR * 6, sunR * 6);
+      ctx.fillStyle = this.hsl(warm);
+      ctx.beginPath();
+      ctx.arc(sunX, sunY, sunR, 0, Math.PI * 2);
+      ctx.fill();
+      if (scene === 'ocean') {
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = this.hsl(warm);
+        for (let i = 0; i < 6; i++) {
+          const ry = h * 0.8 + i * 9;
+          const rw = sunR * (1.4 - i * 0.16);
+          ctx.fillRect(sunX - rw / 2, ry, rw, 4);
+        }
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // Nuages / fumée qui dérivent (pas dans l'espace)
+    if (scene !== 'space') {
+      const cloudCount = scene === 'volcano' ? 3 : 2 + Math.floor(rand() * 3);
+      for (let i = 0; i < cloudCount; i++) {
+        const drift = ((rand() * w) + t * 14 * genome.flow) % (w + 160) - 80;
+        const cy = scene === 'volcano' ? h * (0.1 + rand() * 0.15) : (0.12 + rand() * 0.3) * h;
+        const scale = 0.5 + rand() * 0.9;
+        const cloudColor = scene === 'volcano'
+          ? { h: 20, s: 15, l: 25 }
+          : { h: sky.h, s: Math.min(40, sky.s), l: darkSky ? 30 : 88 };
+        ctx.fillStyle = this.hsl(cloudColor, 0.5);
+        for (let p = 0; p < 4; p++) {
+          ctx.beginPath();
+          ctx.ellipse(drift + p * 26 * scale, cy + (p % 2) * 8 * scale, 30 * scale, 15 * scale, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    // Élément principal, propre à chaque type de scène
+    if (scene === 'volcano') this.paintVolcano(ctx, w, h, colors, genome, rand, t);
+    else if (scene === 'ocean') this.paintOcean(ctx, w, h, colors, genome, rand, t);
+    else if (scene === 'forest') this.paintForest(ctx, w, h, colors, genome, rand, t);
+    else if (scene === 'default') this.paintHillsAndWaves(ctx, w, h, colors, genome, rand, t);
+
+    // Touches organiques (oiseaux) — pas dans l'espace ni le volcan
+    if (scene !== 'space' && scene !== 'volcano') {
+      const accents = Math.min(8, Math.floor(genome.shapes / 3));
+      ctx.strokeStyle = this.hsl({ h: sky.h, s: 30, l: darkSky ? 80 : 22 }, 0.7);
+      ctx.lineWidth = 1.6;
+      for (let i = 0; i < accents; i++) {
+        const bx = rand() * w;
+        const by = (0.18 + rand() * 0.3) * h + Math.sin(t * 2 + i) * 3;
+        ctx.beginPath();
+        ctx.arc(bx - 5, by, 5, Math.PI * 1.15, Math.PI * 1.85);
+        ctx.arc(bx + 5, by, 5, Math.PI * 1.15, Math.PI * 1.85);
+        ctx.stroke();
+      }
+    }
+
+    // Grain léger
+    if (genome.noise > 0.05) {
+      ctx.globalAlpha = genome.noise * 0.22;
+      for (let i = 0; i < 200; i++) {
+        ctx.fillStyle = rand() > 0.5 ? '#ffffff' : '#000000';
+        ctx.fillRect(rand() * w, rand() * h, 1.4, 1.4);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // Signature du sujet
+    if (subject) {
+      ctx.font = `${Math.max(11, w * 0.03)}px sans-serif`;
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.lineWidth = 2;
+      ctx.strokeText(subject, 10, h - 10);
+      ctx.fillText(subject, 10, h - 10);
+    }
+  }
+
+  paintSpaceSky(ctx, w, h, colors, rand, t) {
+    // Nébuleuses : grands halos colorés superposés
+    for (let i = 0; i < 3; i++) {
+      const nx = (0.2 + rand() * 0.6) * w, ny = (0.15 + rand() * 0.5) * h;
+      const nr = (0.25 + rand() * 0.2) * Math.max(w, h);
+      const neb = ctx.createRadialGradient(nx, ny, 0, nx, ny, nr);
+      neb.addColorStop(0, this.hsl(colors[(i + 2) % 5], 0.26));
+      neb.addColorStop(1, this.hsl(colors[(i + 2) % 5], 0));
+      ctx.fillStyle = neb;
+      ctx.fillRect(0, 0, w, h);
+    }
+    // Planète avec anneau
+    const px = (0.6 + rand() * 0.22) * w, py = (0.3 + rand() * 0.22) * h;
+    const pr = (0.09 + rand() * 0.05) * Math.min(w, h);
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(-0.35);
+    ctx.strokeStyle = this.hsl(colors[3], 0.7);
+    ctx.lineWidth = pr * 0.16;
     ctx.beginPath();
-    ctx.arc(sunX, sunY, sunR, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, pr * 1.8, pr * 0.5, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+    const pGrad = ctx.createRadialGradient(px - pr * 0.3, py - pr * 0.3, pr * 0.1, px, py, pr);
+    pGrad.addColorStop(0, this.hsl(colors[4], 1, 14));
+    pGrad.addColorStop(1, this.hsl(colors[4], 1, -14));
+    ctx.fillStyle = pGrad;
+    ctx.beginPath();
+    ctx.arc(px, py, pr, 0, Math.PI * 2);
+    ctx.fill();
+    // Comète filante
+    const cx = ((t * 60) % (w + 200)) - 100;
+    const cy = h * 0.2 + Math.sin(t) * 10;
+    const tail = ctx.createLinearGradient(cx, cy, cx - 70, cy + 30);
+    tail.addColorStop(0, 'rgba(255,255,255,0.85)');
+    tail.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.strokeStyle = tail;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx - 70, cy + 30);
+    ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 2.4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  paintVolcano(ctx, w, h, colors, genome, rand, t) {
+    const baseY = h * 0.62;
+    const peakX = w * 0.5 + (rand() - 0.5) * w * 0.1;
+    const peakY = h * (0.22 + rand() * 0.08);
+    const craterW = w * 0.09;
+
+    ctx.fillStyle = this.hsl(colors[3], 1, -14);
+    ctx.beginPath();
+    ctx.moveTo(peakX - w * 0.28, baseY);
+    ctx.lineTo(peakX - craterW, peakY);
+    ctx.lineTo(peakX + craterW, peakY);
+    ctx.lineTo(peakX + w * 0.28, baseY);
+    ctx.lineTo(w, h);
+    ctx.lineTo(0, h);
+    ctx.closePath();
     ctx.fill();
 
-    // Nuages qui dérivent
-    const cloudCount = 2 + Math.floor(rand() * 3);
-    for (let i = 0; i < cloudCount; i++) {
-      const drift = ((rand() * w) + t * 14 * genome.flow) % (w + 160) - 80;
-      const cy = (0.12 + rand() * 0.3) * h;
-      const scale = 0.5 + rand() * 0.9;
-      ctx.fillStyle = this.hsl({ h: sky.h, s: Math.min(40, sky.s), l: darkSky ? 30 : 88 }, 0.5);
-      for (let p = 0; p < 4; p++) {
+    // Coulées de lave
+    ctx.strokeStyle = this.hsl({ h: 14, s: 90, l: 55 }, 0.9);
+    ctx.lineWidth = 4;
+    for (let i = 0; i < 3; i++) {
+      const sx = peakX + (rand() - 0.5) * craterW;
+      ctx.beginPath();
+      ctx.moveTo(sx, peakY + 4);
+      ctx.quadraticCurveTo(sx + (rand() - 0.5) * 30, (peakY + baseY) / 2, sx + (rand() - 0.5) * 50, baseY - 6);
+      ctx.stroke();
+    }
+
+    // Lueur du cratère, pulsation
+    const glowR = craterW * (1.4 + 0.3 * Math.abs(Math.sin(t * 2)));
+    const glow = ctx.createRadialGradient(peakX, peakY, 2, peakX, peakY, glowR);
+    glow.addColorStop(0, 'rgba(255,180,60,0.95)');
+    glow.addColorStop(1, 'rgba(255,90,20,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(peakX, peakY, glowR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Braises qui montent
+    for (let i = 0; i < 22; i++) {
+      const ex = peakX + (rand() - 0.5) * craterW * 1.4;
+      const rise = ((t * 40 * genome.flow) + i * 37) % 160;
+      const ey = peakY - rise * 0.6;
+      ctx.globalAlpha = Math.max(0, 1 - rise / 160);
+      ctx.fillStyle = 'rgba(255,150,60,0.9)';
+      ctx.fillRect(ex + Math.sin(t * 3 + i) * 6, ey, 2, 2);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  paintOcean(ctx, w, h, colors, genome, rand, t) {
+    const waveBands = 5;
+    for (let b = 0; b < waveBands; b++) {
+      const yBase = h * (0.6 + b * 0.09);
+      const amp = 5 + b * 3;
+      const speed = t * genome.flow * (b + 1) * 0.9;
+      ctx.fillStyle = this.hsl(colors[4], 0.9, -4 * b);
+      ctx.beginPath();
+      ctx.moveTo(0, h);
+      for (let x = 0; x <= w; x += 8) {
+        ctx.lineTo(x, yBase + Math.sin(x / 42 + speed + b * 1.6) * amp);
+      }
+      ctx.lineTo(w, h);
+      ctx.closePath();
+      ctx.fill();
+      if (b === 0) {
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        for (let x = 0; x <= w; x += 22) {
+          const fy = yBase + Math.sin(x / 42 + speed) * amp;
+          ctx.beginPath();
+          ctx.ellipse(x + (rand() - 0.5) * 10, fy - 1, 6, 1.6, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+  }
+
+  paintForest(ctx, w, h, colors, genome, rand, t) {
+    const baseY = h * 0.82;
+    ctx.fillStyle = this.hsl(colors[4], 1, -10);
+    ctx.fillRect(0, baseY, w, h - baseY);
+
+    for (let row = 0; row < 3; row++) {
+      const rowY = baseY - row * h * 0.09;
+      const count = 6 + Math.floor(rand() * 5);
+      ctx.fillStyle = this.hsl(colors[3], 1, -6 - row * 8);
+      for (let i = 0; i < count; i++) {
+        const tx = (i + 0.5) / count * w + (rand() - 0.5) * 20;
+        const th = h * (0.14 + rand() * 0.08) * (1 - row * 0.15);
+        const tw = th * 0.55;
+        const sway = Math.sin(t * genome.flow * 0.6 + i) * 2;
         ctx.beginPath();
-        ctx.ellipse(drift + p * 26 * scale, cy + (p % 2) * 8 * scale, 30 * scale, 15 * scale, 0, 0, Math.PI * 2);
+        ctx.moveTo(tx + sway, rowY - th);
+        ctx.lineTo(tx - tw / 2, rowY);
+        ctx.lineTo(tx + tw / 2, rowY);
+        ctx.closePath();
         ctx.fill();
       }
     }
 
+    // Lucioles
+    for (let i = 0; i < 14; i++) {
+      const fx = (rand() * w + t * 10 * genome.flow + i * 23) % w;
+      const fy = baseY - h * 0.1 - rand() * h * 0.25 + Math.sin(t * 2 + i) * 6;
+      ctx.globalAlpha = 0.5 + 0.5 * Math.abs(Math.sin(t * 3 + i));
+      ctx.fillStyle = this.hsl({ h: 50, s: 80, l: 70 });
+      ctx.fillRect(fx, fy, 2, 2);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  paintHillsAndWaves(ctx, w, h, colors, genome, rand, t) {
     // Montagnes : deux crêtes superposées
     for (let layer = 0; layer < 2; layer++) {
       const baseY = h * (0.55 + layer * 0.12);
@@ -252,39 +494,6 @@ class Vision {
       ctx.lineTo(w, h);
       ctx.closePath();
       ctx.fill();
-    }
-
-    // Touches organiques (oiseaux / feuillages stylisés selon le génome)
-    const accents = Math.min(8, Math.floor(genome.shapes / 3));
-    ctx.strokeStyle = this.hsl({ h: sky.h, s: 30, l: darkSky ? 80 : 22 }, 0.7);
-    ctx.lineWidth = 1.6;
-    for (let i = 0; i < accents; i++) {
-      const bx = rand() * w;
-      const by = (0.18 + rand() * 0.3) * h + Math.sin(t * 2 + i) * 3;
-      ctx.beginPath();
-      ctx.arc(bx - 5, by, 5, Math.PI * 1.15, Math.PI * 1.85);
-      ctx.arc(bx + 5, by, 5, Math.PI * 1.15, Math.PI * 1.85);
-      ctx.stroke();
-    }
-
-    // Grain léger
-    if (genome.noise > 0.05) {
-      ctx.globalAlpha = genome.noise * 0.22;
-      for (let i = 0; i < 200; i++) {
-        ctx.fillStyle = rand() > 0.5 ? '#ffffff' : '#000000';
-        ctx.fillRect(rand() * w, rand() * h, 1.4, 1.4);
-      }
-      ctx.globalAlpha = 1;
-    }
-
-    // Signature du sujet
-    if (subject) {
-      ctx.font = `${Math.max(11, w * 0.03)}px sans-serif`;
-      ctx.fillStyle = 'rgba(255,255,255,0.75)';
-      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-      ctx.lineWidth = 2;
-      ctx.strokeText(subject, 10, h - 10);
-      ctx.fillText(subject, 10, h - 10);
     }
   }
 

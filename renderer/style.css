@@ -37,6 +37,7 @@ body {
   flex-direction: column;
   padding: 14px;
   gap: 14px;
+  overflow-y: auto;
 }
 
 .logo { display: flex; align-items: center; gap: 8px; padding: 4px 2px; }
@@ -63,6 +64,8 @@ body {
 
 .sidebar-section { display: flex; flex-direction: column; gap: 10px; min-height: 0; flex: 1; }
 .stats-section { flex: 0 0 auto; }
+
+.conversations-section { min-height: 110px; }
 
 .conversation-list {
   flex: 1; overflow-y: auto; min-height: 60px;
@@ -141,6 +144,7 @@ body {
 
 .share-section { flex: 0 0 auto; }
 .share-status { font-size: 12px; color: var(--text-dim); line-height: 1.45; }
+.share-security-note { font-size: 11px; opacity: 0.8; }
 .share-token-row { display: flex; gap: 6px; }
 .share-token-row input {
   flex: 1; min-width: 0;

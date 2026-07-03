@@ -26,16 +26,25 @@ function createWindow() {
 
 /*
  * Passerelle réseau pour le renderer : certains sites (flux RSS, sous-titres
- * YouTube) n'autorisent pas les requêtes directes depuis une page (CORS).
- * Le processus principal, lui, n'a pas cette restriction.
+ * YouTube, recherche web, pages quelconques) n'autorisent pas les requêtes
+ * directes depuis une page (CORS). Le processus principal, lui, n'a pas
+ * cette restriction. La taille est plafonnée pour éviter qu'une page géante
+ * ne bloque le rendu ou gonfle inutilement la mémoire du modèle.
  */
+const MAX_FETCH_CHARS = 800000;
+
 ipcMain.handle('net-fetch', async (_event, url) => {
   try {
     const res = await fetch(url, {
       headers: { 'User-Agent': 'AI-Local' },
       redirect: 'follow'
     });
-    return { ok: res.ok, status: res.status, text: await res.text() };
+    const text = await res.text();
+    return {
+      ok: res.ok,
+      status: res.status,
+      text: text.length > MAX_FETCH_CHARS ? text.slice(0, MAX_FETCH_CHARS) : text
+    };
   } catch (err) {
     return { ok: false, status: 0, text: '', error: String(err) };
   }

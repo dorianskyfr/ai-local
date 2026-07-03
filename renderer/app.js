@@ -3,10 +3,11 @@
 
 // Vitesses d'apprentissage : intervalle entre cycles (texte / médias).
 const SPEEDS = {
-  eco:    { label: 'Éco',    text: 10000, media: 3000 },
-  normal: { label: 'Normal', text: 5000,  media: 1500 },
-  fast:   { label: 'Rapide', text: 2500,  media: 900 },
-  turbo:  { label: 'Turbo',  text: 1200,  media: 500 }
+  eco:      { label: 'Éco',      text: 10000, media: 3000 },
+  normal:   { label: 'Normal',   text: 5000,  media: 1500 },
+  fast:     { label: 'Rapide',   text: 2500,  media: 900 },
+  turbo:    { label: 'Turbo',    text: 1200,  media: 500 },
+  ultimate: { label: 'Ultimate', text: 700,   media: 250, caution: true }
 };
 const SPEED_KEY = 'ai-local-speed';
 
@@ -540,6 +541,7 @@ for (const key in SPEEDS) {
   const s = SPEEDS[key];
   opt.textContent = `${s.label} — 1 cycle toutes les ${(s.text / 1000).toLocaleString('fr-FR')} s`;
   if (key === pcInfo.recommended) opt.textContent += ' (recommandé pour ton PC)';
+  else if (s.caution) opt.textContent += ' (sollicite fortement les sources — à réserver aux bons PC)';
   trainSpeedEl.appendChild(opt);
 }
 trainSpeedEl.value = currentSpeed();
@@ -572,6 +574,11 @@ async function textTrainingStep() {
       brain.learn(r.extract, 1, r.title);
       const a = brain.getStats();
       feedEntry(`📖 [${r.sourceLabel}] « ${r.title} » — +${a.sentencesLearned - b.sentencesLearned} phrases, +${a.memories - b.memories} souvenirs.`);
+      if (r.images && r.images.length) {
+        learnImagesPalette(topic || r.sourceLabel, r.images).then((n) => {
+          if (n) feedEntry(`🖼 ${n} image(s) de « ${r.sourceLabel} » apprise(s) pour les couleurs.`);
+        });
+      }
     }
     if (results.length > 1) {
       const after = brain.getStats();
@@ -612,22 +619,28 @@ async function textTrainingStep() {
 
 let paletteFetchedFor = null;
 
+/** Charge une liste d'URLs d'images et en apprend la palette de couleurs. */
+async function learnImagesPalette(topic, urls) {
+  let learned = 0;
+  for (const url of urls) {
+    await new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => { if (vision.learnPaletteFromImage(topic, img)) learned += 1; resolve(); };
+      img.onerror = resolve;
+      img.src = url;
+    });
+  }
+  return learned;
+}
+
 /** Apprend les palettes de vraies images du web (Wikimedia Commons) sur le sujet. */
 async function learnPalettesFromWeb(topic) {
   if (!topic || paletteFetchedFor === topic) return;
   paletteFetchedFor = topic;
   try {
     const urls = await Trainer.fetchCommonsImages(topic);
-    let learned = 0;
-    for (const url of urls) {
-      await new Promise((resolve) => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => { if (vision.learnPaletteFromImage(topic, img)) learned += 1; resolve(); };
-        img.onerror = resolve;
-        img.src = url;
-      });
-    }
+    const learned = await learnImagesPalette(topic, urls);
     if (learned) {
       feedEntry(`🖼 ${learned} vraie(s) image(s) du web étudiée(s) : j'ai appris les couleurs de « ${topic} ».`);
     }
@@ -681,7 +694,7 @@ function startTraining() {
 
   if (mode === 'text') {
     const sources = Trainer.resolveSources(trainSourceEl.value, topic);
-    const labels = sources.map(s => s === 'rss' ? 'Actualités' : s === 'youtube' ? 'YouTube' : Trainer.MEDIAWIKI_SOURCES[s].label).join(', ');
+    const labels = sources.map(Trainer.sourceLabel).join(', ');
     feedEntry(topic
       ? `🚀 Entraînement lancé sur « ${topic} » — sources : ${labels}.`
       : `🚀 Entraînement lancé sur des sujets aléatoires — sources : ${labels}.`);
@@ -708,7 +721,7 @@ function stopTraining() {
   stopPreview();
   setTrainingUI(false);
   feedEntry('⏹ Entraînement arrêté. Le modèle a conservé tout ce qu\'il a appris.');
-  updatePresence('Discute avec son IA locale', 'AI Local v0.5');
+  updatePresence('Discute avec son IA locale', 'AI Local v0.6');
 }
 
 trainStartBtn.addEventListener('click', () => {
@@ -815,7 +828,7 @@ discordSaveBtn.addEventListener('click', () => {
   localStorage.setItem(DISCORD_KEY, id);
   if (id) {
     discordStatusEl.textContent = '✓ Présence activée (Discord doit être ouvert sur ce PC).';
-    updatePresence('Discute avec son IA locale', 'AI Local v0.5');
+    updatePresence('Discute avec son IA locale', 'AI Local v0.6');
   } else {
     discordStatusEl.textContent = 'Présence désactivée.';
     if (window.native && window.native.discordPresence) window.native.discordPresence({ clientId: '' });
@@ -830,5 +843,5 @@ renderConversationList();
 renderMessages();
 updateStats();
 syncSharedModel();
-updatePresence('Discute avec son IA locale', 'AI Local v0.5');
+updatePresence('Discute avec son IA locale', 'AI Local v0.6');
 inputEl.focus();

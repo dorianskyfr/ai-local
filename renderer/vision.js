@@ -156,13 +156,13 @@ class Vision {
     };
   }
 
-  /** Génère une image fixe et retourne un dataURL PNG. */
+  /** Génère une image fixe et retourne un dataURL JPEG (léger à stocker). */
   generateImage(subject, w = 480, h = 320) {
     const canvas = document.createElement('canvas');
     canvas.width = w;
     canvas.height = h;
     this.paint(canvas.getContext('2d'), w, h, this.genome, subject, 0);
-    return canvas.toDataURL('image/png');
+    return canvas.toDataURL('image/jpeg', 0.85);
   }
 
   /**

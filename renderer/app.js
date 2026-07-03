@@ -1,7 +1,13 @@
-/* Logique de l'interface : onglets, chat multimodal et centre d'entraînement. */
+/* Logique de l'interface : onglets, conversations persistantes,
+   chat multimodal en streaming, centre d'entraînement et galerie. */
 
 const TEXT_TRAIN_INTERVAL_MS = 5000;
 const MEDIA_TRAIN_INTERVAL_MS = 1500;
+const STREAM_WORD_MS = 45;
+const CONV_STORAGE_KEY = 'ai-local-conversations-v1';
+const GALLERY_STORAGE_KEY = 'ai-local-gallery-v1';
+const MAX_CONVERSATIONS = 20;
+const MAX_GALLERY = 40;
 
 const brain = new Brain();
 if (!brain.load()) {
@@ -16,15 +22,18 @@ vision.load();
 
 const tabChat = document.getElementById('tab-chat');
 const tabTraining = document.getElementById('tab-training');
+const tabGallery = document.getElementById('tab-gallery');
 const tabTrainingDot = document.getElementById('tab-training-dot');
 const viewChat = document.getElementById('view-chat');
 const viewTraining = document.getElementById('view-training');
+const viewGallery = document.getElementById('view-gallery');
 
 const messagesEl = document.getElementById('messages');
 const composerEl = document.getElementById('composer');
 const inputEl = document.getElementById('input');
 const sendBtn = document.getElementById('send-btn');
 const newChatBtn = document.getElementById('new-chat-btn');
+const conversationListEl = document.getElementById('conversation-list');
 
 const trainModeEl = document.getElementById('train-mode');
 const topicInputEl = document.getElementById('topic-input');
@@ -33,24 +42,132 @@ const trainStartLabel = trainStartBtn.querySelector('.train-start-label');
 const trainFeedEl = document.getElementById('train-feed');
 const previewWrap = document.getElementById('preview-wrap');
 const previewCanvas = document.getElementById('train-preview');
-
-let history = [];       // { role: 'user' | 'ai', text }
+const galleryGridEl = document.getElementById('gallery-grid');
 
 /* ---------- Onglets ---------- */
 
 function showTab(name) {
-  const chat = name === 'chat';
-  tabChat.classList.toggle('active', chat);
-  tabTraining.classList.toggle('active', !chat);
-  viewChat.hidden = !chat;
-  viewTraining.hidden = chat;
-  if (chat) inputEl.focus();
+  tabChat.classList.toggle('active', name === 'chat');
+  tabTraining.classList.toggle('active', name === 'training');
+  tabGallery.classList.toggle('active', name === 'gallery');
+  viewChat.hidden = name !== 'chat';
+  viewTraining.hidden = name !== 'training';
+  viewGallery.hidden = name !== 'gallery';
+  if (name === 'chat') inputEl.focus();
+  if (name === 'gallery') renderGallery();
 }
 
 tabChat.addEventListener('click', () => showTab('chat'));
 tabTraining.addEventListener('click', () => showTab('training'));
+tabGallery.addEventListener('click', () => showTab('gallery'));
+
+/* ---------- Conversations persistantes ---------- */
+
+let conversations = [];
+let currentConvId = null;
+
+function loadConversations() {
+  try {
+    const raw = localStorage.getItem(CONV_STORAGE_KEY);
+    if (raw) {
+      const data = JSON.parse(raw);
+      conversations = data.conversations || [];
+      currentConvId = data.currentConvId || null;
+    }
+  } catch (e) { /* stockage corrompu : on repart de zéro */ }
+  if (!conversations.length) createConversation();
+  if (!conversations.some(c => c.id === currentConvId)) {
+    currentConvId = conversations[0].id;
+  }
+}
+
+function saveConversations() {
+  try {
+    localStorage.setItem(CONV_STORAGE_KEY, JSON.stringify({ conversations, currentConvId }));
+  } catch (e) {
+    // Quota dépassé : on retire les plus anciennes conversations et on réessaie.
+    if (conversations.length > 1) {
+      conversations = conversations.slice(0, Math.ceil(conversations.length / 2));
+      try {
+        localStorage.setItem(CONV_STORAGE_KEY, JSON.stringify({ conversations, currentConvId }));
+      } catch (e2) { console.warn('Sauvegarde des conversations impossible :', e2); }
+    }
+  }
+}
+
+function createConversation() {
+  const conv = {
+    id: 'c' + Date.now() + Math.random().toString(36).slice(2, 6),
+    title: 'Nouvelle conversation',
+    createdAt: Date.now(),
+    messages: []
+  };
+  conversations.unshift(conv);
+  while (conversations.length > MAX_CONVERSATIONS) conversations.pop();
+  currentConvId = conv.id;
+  return conv;
+}
+
+function currentConv() {
+  return conversations.find(c => c.id === currentConvId) || conversations[0];
+}
+
+function switchConversation(id) {
+  currentConvId = id;
+  saveConversations();
+  renderConversationList();
+  renderMessages();
+  showTab('chat');
+}
+
+function deleteConversation(id, event) {
+  event.stopPropagation();
+  const idx = conversations.findIndex(c => c.id === id);
+  if (idx === -1) return;
+  conversations.splice(idx, 1);
+  if (!conversations.length) createConversation();
+  if (currentConvId === id) currentConvId = conversations[0].id;
+  saveConversations();
+  renderConversationList();
+  renderMessages();
+}
+
+function renderConversationList() {
+  conversationListEl.innerHTML = '';
+  for (const conv of conversations) {
+    const item = document.createElement('div');
+    item.className = 'conversation-item' + (conv.id === currentConvId ? ' active' : '');
+    item.addEventListener('click', () => switchConversation(conv.id));
+
+    const title = document.createElement('span');
+    title.className = 'conversation-title';
+    title.textContent = conv.title;
+
+    const del = document.createElement('button');
+    del.className = 'conversation-delete';
+    del.textContent = '×';
+    del.title = 'Supprimer la conversation';
+    del.addEventListener('click', (e) => deleteConversation(conv.id, e));
+
+    item.append(title, del);
+    conversationListEl.appendChild(item);
+  }
+}
 
 /* ---------- Affichage des messages ---------- */
+
+function welcomeHtml() {
+  return `
+    <div class="welcome">
+      <div class="welcome-icon">✳</div>
+      <h1>Bonjour !</h1>
+      <p>Je suis une IA locale qui apprend toute seule. Parle-moi ici, entraîne-moi
+      dans l'onglet <strong>S'entraîner</strong>, et pose-moi des questions sur ce que
+      j'ai étudié : je réponds avec ma mémoire et je cite mes sources.</p>
+      <p class="welcome-tip">Astuce : demande-moi « dessine un coucher de soleil »
+      ou « fais une vidéo de l'océan ».</p>
+    </div>`;
+}
 
 function clearWelcome() {
   const welcome = messagesEl.querySelector('.welcome');
@@ -75,11 +192,11 @@ function makeMessage(role) {
   return bubble;
 }
 
-function addMessage(role, text) {
+function renderTextMessage(role, text) {
   makeMessage(role).textContent = text;
 }
 
-function addImageMessage(text, dataUrl) {
+function renderImageMessage(text, dataUrl) {
   const bubble = makeMessage('ai');
   const p = document.createElement('p');
   p.textContent = text;
@@ -91,7 +208,7 @@ function addImageMessage(text, dataUrl) {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
-function addVideoMessage(text, blobUrl) {
+function renderVideoMessage(text, blobUrl) {
   const bubble = makeMessage('ai');
   const p = document.createElement('p');
   p.textContent = text;
@@ -104,6 +221,45 @@ function addVideoMessage(text, blobUrl) {
   video.className = 'generated-media';
   bubble.append(p, video);
   messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function renderMessages() {
+  const conv = currentConv();
+  messagesEl.innerHTML = '';
+  if (!conv.messages.length) {
+    messagesEl.innerHTML = welcomeHtml();
+    return;
+  }
+  for (const m of conv.messages) {
+    if (m.kind === 'image' && m.dataUrl) renderImageMessage(m.text, m.dataUrl);
+    else if (m.kind === 'video') renderTextMessage('ai', m.text + ' (vidéo disponible le temps de la session)');
+    else renderTextMessage(m.role, m.text);
+  }
+}
+
+function pushMessage(message) {
+  const conv = currentConv();
+  conv.messages.push(message);
+  if (conv.title === 'Nouvelle conversation' && message.role === 'user') {
+    conv.title = message.text.length > 34 ? message.text.slice(0, 34) + '…' : message.text;
+    renderConversationList();
+  }
+  saveConversations();
+}
+
+/** Affiche la réponse mot à mot, façon machine à écrire. */
+function streamTextMessage(text, done) {
+  const bubble = makeMessage('ai');
+  const words = text.split(' ');
+  let i = 0;
+  const tick = () => {
+    bubble.textContent = words.slice(0, i + 1).join(' ');
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    i += 1;
+    if (i < words.length) setTimeout(tick, STREAM_WORD_MS);
+    else if (done) done();
+  };
+  tick();
 }
 
 function addTypingIndicator() {
@@ -120,6 +276,52 @@ function addTypingIndicator() {
   messagesEl.appendChild(wrap);
   messagesEl.scrollTop = messagesEl.scrollHeight;
   return wrap;
+}
+
+/* ---------- Galerie ---------- */
+
+let gallery = [];
+
+function loadGallery() {
+  try {
+    gallery = JSON.parse(localStorage.getItem(GALLERY_STORAGE_KEY)) || [];
+  } catch (e) { gallery = []; }
+}
+
+function saveGallery() {
+  try {
+    localStorage.setItem(GALLERY_STORAGE_KEY, JSON.stringify(gallery));
+  } catch (e) {
+    gallery = gallery.slice(0, Math.ceil(gallery.length / 2));
+    try { localStorage.setItem(GALLERY_STORAGE_KEY, JSON.stringify(gallery)); }
+    catch (e2) { console.warn('Sauvegarde de la galerie impossible :', e2); }
+  }
+}
+
+function addToGallery(subject, dataUrl) {
+  gallery.unshift({ subject, dataUrl, date: Date.now() });
+  while (gallery.length > MAX_GALLERY) gallery.pop();
+  saveGallery();
+}
+
+function renderGallery() {
+  galleryGridEl.innerHTML = '';
+  if (!gallery.length) {
+    galleryGridEl.innerHTML = `<p class="feed-empty">Aucune image pour le moment —
+      demande « dessine … » dans le chat, ou lance un entraînement d'images.</p>`;
+    return;
+  }
+  for (const item of gallery) {
+    const card = document.createElement('figure');
+    card.className = 'gallery-card';
+    const img = document.createElement('img');
+    img.src = item.dataUrl;
+    img.alt = item.subject;
+    const caption = document.createElement('figcaption');
+    caption.textContent = item.subject;
+    card.append(img, caption);
+    galleryGridEl.appendChild(card);
+  }
 }
 
 /* ---------- Détection d'intention image / vidéo ---------- */
@@ -146,8 +348,8 @@ function handleSend() {
 
   inputEl.value = '';
   autoResize();
-  addMessage('user', text);
-  history.push({ role: 'user', text });
+  renderTextMessage('user', text);
+  pushMessage({ role: 'user', kind: 'text', text });
 
   sendBtn.disabled = true;
   const typing = addTypingIndicator();
@@ -167,9 +369,11 @@ function handleSend() {
     const subject = extractSubject(text);
     setTimeout(() => {
       const dataUrl = vision.generateImage(subject);
+      const caption = `Voici mon image pour « ${subject} » (génération ${vision.stats.generations}).`;
       done();
-      addImageMessage(`Voici mon image pour « ${subject} » (génération ${vision.stats.generations}).`, dataUrl);
-      history.push({ role: 'ai', text: `[image : ${subject}]` });
+      renderImageMessage(caption, dataUrl);
+      pushMessage({ role: 'ai', kind: 'image', text: caption, dataUrl });
+      addToGallery(subject, dataUrl);
     }, 500);
     return;
   }
@@ -178,22 +382,28 @@ function handleSend() {
     brain.learn(text);
     const subject = extractSubject(text);
     vision.generateVideo(subject).then((blobUrl) => {
+      const caption = `Voici ma vidéo pour « ${subject} ».`;
       done();
-      addVideoMessage(`Voici ma vidéo pour « ${subject} ».`, blobUrl);
-      history.push({ role: 'ai', text: `[vidéo : ${subject}]` });
+      renderVideoMessage(caption, blobUrl);
+      pushMessage({ role: 'ai', kind: 'video', text: caption });
     }).catch(() => {
       done();
-      addMessage('ai', "Je n'ai pas réussi à générer la vidéo cette fois-ci. Réessaie !");
+      renderTextMessage('ai', "Je n'ai pas réussi à générer la vidéo cette fois-ci. Réessaie !");
     });
     return;
   }
 
-  const delay = 400 + Math.random() * 600;
+  const delay = 300 + Math.random() * 500;
   setTimeout(() => {
     const answer = brain.reply(text);
-    done();
-    addMessage('ai', answer);
-    history.push({ role: 'ai', text: answer });
+    typing.remove();
+    streamTextMessage(answer, () => {
+      pushMessage({ role: 'ai', kind: 'text', text: answer });
+      brain.save();
+      updateStats();
+      sendBtn.disabled = false;
+      inputEl.focus();
+    });
   }, delay);
 }
 
@@ -215,17 +425,16 @@ function autoResize() {
 }
 inputEl.addEventListener('input', autoResize);
 
-/* ---------- Nouvelle conversation ---------- */
-
 newChatBtn.addEventListener('click', () => {
-  history = [];
-  messagesEl.innerHTML = `
-    <div class="welcome">
-      <div class="welcome-icon">✳</div>
-      <h1>Nouvelle conversation</h1>
-      <p>Le modèle garde tout ce qu'il a appris. Continue de lui parler,
-      ou passe par l'onglet <strong>S'entraîner</strong>.</p>
-    </div>`;
+  const conv = currentConv();
+  if (conv && !conv.messages.length) {
+    switchConversation(conv.id);
+    return;
+  }
+  createConversation();
+  saveConversations();
+  renderConversationList();
+  renderMessages();
   showTab('chat');
 });
 
@@ -262,9 +471,9 @@ async function textTrainingStep() {
       ? await Trainer.fetchArticleOnTopic(topic)
       : await Trainer.fetchRandomArticle();
     if (article) {
-      brain.learn(article.extract);
+      brain.learn(article.extract, 1, article.title);
       const after = brain.getStats();
-      feedEntry(`📖 « ${article.title} » étudié — +${after.sentencesLearned - before.sentencesLearned} phrases, vocabulaire : ${after.vocabSize} mots.`);
+      feedEntry(`📖 « ${article.title} » étudié — +${after.sentencesLearned - before.sentencesLearned} phrases, +${after.memories - before.memories} souvenirs, vocabulaire : ${after.vocabSize} mots.`);
     } else {
       feedEntry(topic
         ? `🔍 Rien trouvé sur « ${topic} », nouvel essai au prochain cycle…`
@@ -274,7 +483,8 @@ async function textTrainingStep() {
     feedEntry('⚠ Internet inaccessible — je m\'auto-entraîne en local en attendant.', 'warn');
   }
   // Consolidation locale à chaque cycle, avec ou sans internet.
-  const summary = brain.selfTrainStep(history.slice(-10).map(m => m.text));
+  const conv = currentConv();
+  const summary = brain.selfTrainStep(conv.messages.slice(-10).map(m => m.text));
   if (summary.best) {
     feedEntry(`🧠 Cycle ${summary.epoch} — ${summary.reinforced} phrases auto-renforcées.`);
   }
@@ -286,6 +496,11 @@ async function textTrainingStep() {
 function mediaTrainingStep() {
   const result = vision.trainStep();
   feedEntry(`🎨 Génération ${result.generation} — ${result.evaluated} images évaluées, score ${(result.score * 100).toFixed(0)} %.`);
+  // Un instantané rejoint la galerie régulièrement pour suivre les progrès.
+  if (result.generation % 10 === 0) {
+    const subject = topicInputEl.value.trim() || 'entraînement libre';
+    addToGallery(`${subject} — génération ${result.generation}`, vision.generateImage(subject));
+  }
   updateStats();
 }
 
@@ -355,13 +570,18 @@ function updateStats() {
   const s = brain.getStats();
   document.getElementById('stat-epochs').textContent = s.epochs;
   document.getElementById('stat-vocab').textContent = s.vocabSize;
-  document.getElementById('stat-transitions').textContent = s.transitions;
+  document.getElementById('stat-memories').textContent = s.memories;
   document.getElementById('stat-sentences').textContent = s.sentencesLearned;
-  document.getElementById('stat-reinforced').textContent = s.selfReinforced;
   document.getElementById('stat-generations').textContent = vision.stats.generations;
   document.getElementById('confidence-fill').style.width =
     Math.min(100, Math.round(s.confidence * 100)) + '%';
 }
 
+/* ---------- Démarrage ---------- */
+
+loadConversations();
+loadGallery();
+renderConversationList();
+renderMessages();
 updateStats();
 inputEl.focus();

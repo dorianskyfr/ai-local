@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Local — v0.2</title>
+  <title>AI Local — v0.3</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -15,7 +15,7 @@
         <div class="logo">
           <span class="logo-dot"></span>
           <span class="logo-text">AI Local</span>
-          <span class="version-badge">v0.2</span>
+          <span class="version-badge">v0.3</span>
         </div>
       </div>
 
@@ -24,14 +24,18 @@
         Nouvelle conversation
       </button>
 
-      <div class="sidebar-section">
+      <div class="sidebar-section conversations-section">
+        <h3>Conversations</h3>
+        <div id="conversation-list" class="conversation-list"></div>
+      </div>
+
+      <div class="sidebar-section stats-section">
         <h3>Modèle</h3>
         <div class="stats">
           <div class="stat-row"><span>Cycles</span><strong id="stat-epochs">0</strong></div>
           <div class="stat-row"><span>Vocabulaire</span><strong id="stat-vocab">0</strong></div>
-          <div class="stat-row"><span>Transitions</span><strong id="stat-transitions">0</strong></div>
+          <div class="stat-row"><span>Souvenirs</span><strong id="stat-memories">0</strong></div>
           <div class="stat-row"><span>Phrases apprises</span><strong id="stat-sentences">0</strong></div>
-          <div class="stat-row"><span>Auto-renforcées</span><strong id="stat-reinforced">0</strong></div>
           <div class="stat-row"><span>Générations img.</span><strong id="stat-generations">0</strong></div>
           <div class="stat-row">
             <span>Confiance</span>
@@ -54,21 +58,12 @@
           🧠 S'entraîner
           <span id="tab-training-dot" class="tab-dot" hidden></span>
         </button>
+        <button id="tab-gallery" class="tab">🖼 Galerie</button>
       </nav>
 
       <!-- Vue Chat (par défaut) -->
       <section id="view-chat" class="view">
-        <div id="messages" class="messages">
-          <div class="welcome">
-            <div class="welcome-icon">✳</div>
-            <h1>Bonjour !</h1>
-            <p>Je suis une IA locale qui apprend toute seule. Parle-moi ici, ou ouvre
-            l'onglet <strong>S'entraîner</strong> pour me faire étudier n'importe quel
-            sujet sur internet, ou m'entraîner à générer des images et des vidéos.</p>
-            <p class="welcome-tip">Astuce : demande-moi « dessine un coucher de soleil »
-            ou « fais une vidéo de l'océan ».</p>
-          </div>
-        </div>
+        <div id="messages" class="messages"></div>
 
         <div class="composer-wrap">
           <form id="composer" class="composer">
@@ -119,6 +114,20 @@
             <div id="train-feed" class="train-feed" aria-live="polite">
               <p class="feed-empty">Aucun entraînement lancé pour le moment.</p>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Vue Galerie -->
+      <section id="view-gallery" class="view" hidden>
+        <div class="gallery-page">
+          <header class="training-header">
+            <h2>Galerie</h2>
+            <p>Les images générées par le modèle sont conservées ici automatiquement.</p>
+          </header>
+          <div id="gallery-grid" class="gallery-grid">
+            <p class="feed-empty">Aucune image pour le moment — demande « dessine … » dans
+            le chat, ou lance un entraînement d'images.</p>
           </div>
         </div>
       </section>

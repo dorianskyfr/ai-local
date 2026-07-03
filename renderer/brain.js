@@ -43,6 +43,9 @@ class Brain {
     this.unigrams = {};
     this.starts = {}; // premiers couples de mots des phrases
     this.vocab = new Set();
+    // Mémoire à long terme : faits retenus (phrases complètes) avec leur source,
+    // consultés par recherche de mots-clés pour répondre aux questions.
+    this.memory = [];
     this.stats = {
       epochs: 0,          // cycles d'auto-entraînement effectués
       sentencesLearned: 0,
@@ -63,7 +66,7 @@ class Brain {
       .filter(Boolean);
   }
 
-  learn(text, weight = 1) {
+  learn(text, weight = 1, source = null) {
     const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
     for (const sentence of sentences) {
       const tokens = this.tokenize(sentence);
@@ -82,12 +85,48 @@ class Brain {
         }
       }
       this.stats.sentencesLearned += 1;
+
+      if (source) this.remember(sentence, source);
     }
   }
 
   bump(table, key, next, weight) {
     if (!table[key]) table[key] = {};
     table[key][next] = (table[key][next] || 0) + weight;
+  }
+
+  // ---------- Mémoire à long terme ----------
+
+  static STOPWORDS = new Set(('le la les un une des du de d l et ou où mais donc or ni car que qui quoi dont est sont était a ont ce cette ces se sa son ses ne pas plus très en dans sur pour par avec sans sous vers chez il elle ils elles on nous vous je tu au aux y été être avoir fait comme aussi tout tous toute toutes leur leurs autre autres même').split(' '));
+
+  keywords(text) {
+    return this.tokenize(text).filter(t =>
+      t.length >= 3 && !/[.!?,;:]/.test(t) && !Brain.STOPWORDS.has(t)
+    );
+  }
+
+  remember(sentence, source) {
+    const clean = sentence.trim().replace(/\s+/g, ' ');
+    if (clean.length < 40 || clean.length > 320) return;
+    if (this.memory.some(m => m.text === clean)) return;
+    this.memory.push({ text: clean, source });
+    if (this.memory.length > 800) this.memory.shift();
+  }
+
+  /** Retrouve les faits les plus pertinents pour une requête (mots-clés partagés). */
+  recall(query, minScore = 2) {
+    const qk = new Set(this.keywords(query));
+    if (!qk.size) return null;
+    let best = null;
+    let bestScore = 0;
+    for (const m of this.memory) {
+      let score = 0;
+      for (const k of this.keywords(m.text)) {
+        if (qk.has(k)) score += Math.min(3, Math.max(1, k.length - 3));
+      }
+      if (score > bestScore) { bestScore = score; best = m; }
+    }
+    return bestScore >= minScore ? best : null;
   }
 
   // ---------- Génération ----------
@@ -170,8 +209,26 @@ class Brain {
     return out;
   }
 
+  isQuestion(text) {
+    return text.includes('?') ||
+      /^(qui|que|quoi|comment|pourquoi|quand|combien|qu'est|qu’est|est-ce|c'est quoi|c’est quoi|parle-moi|raconte|explique|dis-moi)/i.test(text.trim());
+  }
+
   reply(userText) {
-    this.learn(userText);
+    // Les affirmations de l'utilisateur sont mémorisées comme des faits.
+    this.learn(userText, 1, this.isQuestion(userText) ? null : 'toi');
+
+    // Pour une question, on consulte d'abord la mémoire à long terme.
+    if (this.isQuestion(userText)) {
+      const fact = this.recall(userText, 3);
+      if (fact) {
+        const intro = fact.source === 'toi'
+          ? 'Tu m\'avais dit : '
+          : `D'après ce que j'ai appris sur « ${fact.source} » : `;
+        return intro + fact.text;
+      }
+    }
+
     for (let attempt = 0; attempt < 5; attempt++) {
       const gen = this.generate(userText);
       if (gen && gen.length >= 4) return gen.text;
@@ -238,7 +295,8 @@ class Brain {
     return {
       ...this.stats,
       vocabSize: this.vocab.size,
-      transitions
+      transitions,
+      memories: this.memory.length
     };
   }
 
@@ -249,6 +307,7 @@ class Brain {
         unigrams: this.unigrams,
         starts: this.starts,
         vocab: [...this.vocab],
+        memory: this.memory,
         stats: this.stats
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -266,23 +325,13 @@ class Brain {
       this.unigrams = data.unigrams || {};
       this.starts = data.starts || {};
       this.vocab = new Set(data.vocab || []);
+      this.memory = data.memory || [];
       this.stats = Object.assign(this.stats, data.stats || {});
       return true;
     } catch (e) {
       console.warn('Chargement du modèle impossible :', e);
       return false;
     }
-  }
-
-  reset() {
-    this.bigrams = {};
-    this.unigrams = {};
-    this.starts = {};
-    this.vocab = new Set();
-    this.stats = { epochs: 0, sentencesLearned: 0, selfReinforced: 0, confidence: 0 };
-    this.trainingLog = [];
-    this.bootstrap();
-    this.save();
   }
 
   bootstrap() {

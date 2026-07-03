@@ -72,6 +72,11 @@ class Brain {
     return text
       .toLowerCase()
       .replace(/[«»"“”]/g, ' ')
+      // Détache les contractions françaises (d'habitant → habitant,
+      // l'atmosphère → atmosphère, qu'est → est) : sans ça, « d'habitant »
+      // restait un seul mot-clé bizarre qui ne matchait jamais rien, ce qui
+      // faussait le rappel de faits (voir recall()).
+      .replace(/\b(jusqu|lorsqu|puisqu|quoiqu|qu|d|l|j|n|s|t|m|c)['’]/g, ' ')
       .replace(/([.!?,;:])/g, ' $1 ')
       .split(/\s+/)
       .filter(Boolean);
@@ -124,7 +129,19 @@ class Brain {
 
   // ---------- Mémoire à long terme ----------
 
-  static STOPWORDS = new Set(('le la les un une des du de d l et ou où mais donc or ni car que qui quoi dont est sont était a ont ce cette ces se sa son ses ne pas plus très en dans sur pour par avec sans sous vers chez il elle ils elles on nous vous je tu au aux y été être avoir fait comme aussi tout tous toute toutes leur leurs autre autres même').split(' '));
+  static STOPWORDS = new Set((
+    'le la les un une des du de d l et ou où mais donc or ni car que qui quoi dont est sont était a ont ' +
+    'ce cette ces se sa son ses ne pas plus très en dans sur pour par avec sans sous vers chez il elle ils ' +
+    'elles on nous vous je tu au aux y été être avoir fait comme aussi tout tous toute toutes leur leurs ' +
+    'autre autres même ' +
+    // Mots interrogatifs et fragments de construction de question : ce sont
+    // des mots de structure, pas des sujets — ils ne doivent jamais compter
+    // comme un « mot-clé distinctif qu'il faut avoir appris » dans recall(),
+    // sinon une question honnête (« pourquoi le ciel est bleu ») serait
+    // rejetée juste parce que « pourquoi » n'apparaît jamais dans le fait
+    // appris lui-même.
+    'pourquoi comment quand combien quel quelle quels quelles est-ce bonne'
+  ).split(' '));
 
   /** Insensible aux accents, pour matcher « théorie »/« theorie », « été »/« ete »… */
   foldAccents(s) {
@@ -148,21 +165,54 @@ class Brain {
     if (this.memory.some(m => m.text === clean)) return;
     this.memory.push({ text: clean, source });
     if (this.memory.length > 800) this.memory.shift();
+    this._memoryVocabDirty = true;
   }
 
   /**
-   * Retrouve le fait le plus pertinent pour une requête. Deux conditions à
-   * la fois : une bonne PROPORTION des mots-clés de la requête doivent être
-   * dans le souvenir (pas juste un seul mot générique en commun — c'est ce
-   * qui faisait citer un fait sans rapport, genre une manif lycéenne pour
-   * une question sur une population communale, juste parce que « nombre »
-   * apparaissait dans les deux), et un minimum absolu de mots partagés.
+   * Vocabulaire de tous les mots-clés présents dans les souvenirs, mis en
+   * cache et recalculé seulement quand la mémoire change. Sert à repérer
+   * qu'un mot précis de la question (ex. un nom de lieu rare) n'a jamais été
+   * appris nulle part — voir recall().
    */
-  recall(query, minRatio = 0.6) {
-    const qk = new Set(this.keywords(query));
-    if (!qk.size) return null;
-    const needAtLeast = Math.min(2, qk.size);
+  memoryKeywordVocab() {
+    if (!this._memoryVocab || this._memoryVocabDirty) {
+      this._memoryVocab = new Set();
+      for (const m of this.memory) {
+        for (const k of this.keywords(m.text)) this._memoryVocab.add(k);
+      }
+      this._memoryVocabDirty = false;
+    }
+    return this._memoryVocab;
+  }
 
+  /**
+   * Retrouve le fait le plus pertinent pour une requête.
+   *
+   * Avec plusieurs centaines de souvenirs accumulés, un simple ratio de
+   * mots-clés partagés finit statistiquement par trouver une coïncidence :
+   * un mot générique comme « nombre » apparaît dans des dizaines de phrases
+   * factuelles sans rapport, et sur 800 souvenirs, l'un d'eux finit par
+   * matcher 2 mots-clés par pur hasard (c'est ce qui a fait citer « Pays
+   * d'élection » pour une question sur les habitants d'un village).
+   *
+   * Garde-fou décisif : si la requête contient un mot précis et distinctif
+   * (5 lettres ou plus — souvent un nom propre ou un sujet spécifique) qui
+   * n'apparaît DANS AUCUN souvenir, le sujet n'a tout simplement jamais été
+   * appris — on ne cite jamais rien dans ce cas, quels que soient les autres
+   * mots génériques qui coïncident.
+   */
+  recall(query, minRatio = 0.7) {
+    const qk = [...new Set(this.keywords(query))];
+    if (!qk.length) return null;
+
+    const learnedWords = this.memoryKeywordVocab();
+    const hasUnknownDistinctiveWord = qk.some(k => k.length >= 5 && !learnedWords.has(k));
+    if (hasUnknownDistinctiveWord) return null;
+
+    // Pour 1 ou 2 mots-clés, il faut tous les retrouver ; au-delà, une bonne
+    // majorité suffit. (Le seuil ne doit jamais dépasser qk.length, sinon
+    // aucune requête courte ne peut plus jamais matcher quoi que ce soit.)
+    const needAtLeast = qk.length <= 2 ? qk.length : Math.max(2, Math.ceil(qk.length * 0.6));
     let best = null;
     let bestScore = 0;
     for (const m of this.memory) {
@@ -176,7 +226,7 @@ class Brain {
         }
       }
       if (matched < needAtLeast) continue;
-      if (matched / qk.size < minRatio) continue;
+      if (matched / qk.length < minRatio) continue;
       if (score > bestScore) { bestScore = score; best = m; }
     }
     return best;
@@ -468,6 +518,7 @@ class Brain {
       }
     }
     while (this.memory.length > 800) this.memory.shift();
+    this._memoryVocabDirty = true;
 
     const s = data.stats || {};
     this.stats.epochs = Math.max(this.stats.epochs, s.epochs || 0);
@@ -539,6 +590,7 @@ class Brain {
       this.starts = data.starts || {};
       this.vocab = new Set(data.vocab || []);
       this.memory = data.memory || [];
+      this._memoryVocabDirty = true;
       this.stats = Object.assign(this.stats, data.stats || {});
       return true;
     } catch (e) {

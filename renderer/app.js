@@ -25,12 +25,22 @@ const CUSTOM_RAM_KEY = 'ai-local-speed-ram';
  * plus de ressources disponibles.
  */
 function computeCustomSpeed(cores, ramGo) {
-  const powerCores = Math.min(1, cores / 16);
-  const powerRam = Math.min(1, ramGo / 32);
+  // Garde-fous : une valeur invalide (curseur pas encore rendu, saisie vide…)
+  // ne doit jamais produire un intervalle NaN ou nul — setInterval(fn, NaN)
+  // se comporte comme setInterval(fn, 0) et déclencherait une boucle
+  // incontrôlée de requêtes.
+  const safeCores = Number.isFinite(cores) && cores > 0 ? cores : 4;
+  const safeRam = Number.isFinite(ramGo) && ramGo > 0 ? ramGo : 8;
+  const powerCores = Math.min(1, safeCores / 16);
+  const powerRam = Math.min(1, safeRam / 32);
   const power = powerCores * 0.6 + powerRam * 0.4;
   const text = Math.round(SPEEDS.eco.text - power * (SPEEDS.eco.text - SPEEDS.eclair.text));
   const media = Math.round(SPEEDS.eco.media - power * (SPEEDS.eco.media - SPEEDS.eclair.media));
-  return { text, media };
+  // Filet de sécurité final : jamais en dessous du plancher d'Éclair.
+  return {
+    text: Math.max(SPEEDS.eclair.text, text),
+    media: Math.max(SPEEDS.eclair.media, media)
+  };
 }
 
 /*
@@ -614,28 +624,41 @@ function updateCustomRowVisibility() {
 }
 updateCustomRowVisibility();
 
+/** Si un entraînement tourne, le recale sur la cadence actuelle. */
+function restartTrainingInterval(logMessage) {
+  if (!trainingTimer) return;
+  const mode = trainModeEl.value;
+  clearInterval(trainingTimer);
+  trainingTimer = setInterval(
+    mode === 'text' ? textTrainingStep : mediaTrainingStep,
+    mode === 'text' ? SPEEDS[currentSpeed()].text : SPEEDS[currentSpeed()].media
+  );
+  if (logMessage) feedEntry(logMessage);
+}
+
 function applySpeedChange() {
   localStorage.setItem(SPEED_KEY, trainSpeedEl.value);
   updateCustomRowVisibility();
-  // Si un entraînement tourne, on le recale sur la nouvelle cadence.
-  if (trainingTimer) {
-    const mode = trainModeEl.value;
-    clearInterval(trainingTimer);
-    trainingTimer = setInterval(
-      mode === 'text' ? textTrainingStep : mediaTrainingStep,
-      mode === 'text' ? SPEEDS[currentSpeed()].text : SPEEDS[currentSpeed()].media
-    );
-    feedEntry(`⚙ Vitesse d'apprentissage réglée sur ${SPEEDS[currentSpeed()].label}.`);
-  }
+  restartTrainingInterval(`⚙ Vitesse d'apprentissage réglée sur ${SPEEDS[currentSpeed()].label}.`);
 }
 
 trainSpeedEl.addEventListener('change', applySpeedChange);
+
+let customSpeedDebounce = null;
 
 for (const [el, key] of [[customCoresEl, CUSTOM_CORES_KEY], [customRamEl, CUSTOM_RAM_KEY]]) {
   el.addEventListener('input', () => {
     localStorage.setItem(key, el.value);
     refreshCustomSpeed();
-    if (trainSpeedEl.value === 'custom') applySpeedChange();
+    if (trainSpeedEl.value !== 'custom') return;
+    // Anti-rebond : glisser un curseur déclenche des dizaines d'événements
+    // « input ». Sans ça, chaque pixel de mouvement redémarrait le cycle
+    // d'entraînement et spammait le journal. On attend un court silence
+    // (300 ms) avant de recaler l'intervalle pour de vrai.
+    clearTimeout(customSpeedDebounce);
+    customSpeedDebounce = setTimeout(() => {
+      restartTrainingInterval(`⚙ Vitesse personnalisée mise à jour : 1 cycle toutes les ${(SPEEDS.custom.text / 1000).toLocaleString('fr-FR')} s.`);
+    }, 300);
   });
 }
 
@@ -810,7 +833,7 @@ function stopTraining() {
   stopPreview();
   setTrainingUI(false);
   feedEntry('⏹ Entraînement arrêté. Le modèle a conservé tout ce qu\'il a appris.');
-  updatePresence('Discute avec son IA locale', 'AI Local v0.8');
+  updatePresence('Discute avec son IA locale', 'AI Local v0.9');
 }
 
 trainStartBtn.addEventListener('click', () => {
@@ -943,7 +966,7 @@ discordSaveBtn.addEventListener('click', () => {
   localStorage.setItem(DISCORD_KEY, id);
   if (id) {
     discordStatusEl.textContent = '✓ Présence activée (Discord doit être ouvert sur ce PC).';
-    updatePresence('Discute avec son IA locale', 'AI Local v0.8');
+    updatePresence('Discute avec son IA locale', 'AI Local v0.9');
   } else {
     discordStatusEl.textContent = 'Présence désactivée.';
     if (window.native && window.native.discordPresence) window.native.discordPresence({ clientId: '' });
@@ -958,5 +981,5 @@ renderConversationList();
 renderMessages();
 updateStats();
 syncSharedModel();
-updatePresence('Discute avec son IA locale', 'AI Local v0.8');
+updatePresence('Discute avec son IA locale', 'AI Local v0.9');
 inputEl.focus();

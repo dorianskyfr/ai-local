@@ -523,9 +523,9 @@ function handleSend() {
           // chiffre ne sont presque jamais dans l'intro.
           const { results } = await Trainer.fetchBatch(Trainer.resolveSources('all', query), query, { fullText: true });
           for (const r of results) brain.learn(r.extract, 1, r.title);
-          const fact = brain.recall(text) || brain.recall(query);
-          if (fact) {
-            finishWith(`Je viens de me renseigner ! D'après « ${fact.source} » : ${fact.text}`);
+          const learned = brain.answerFromMemory(text) || brain.answerFromMemory(query);
+          if (learned) {
+            finishWith(`Je viens de me renseigner ! ${learned}`);
             return;
           }
           if (results.length) {

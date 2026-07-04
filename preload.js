@@ -1,7 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('appInfo', {
-  version: '1.0.0',
+  version: '1.1.0',
   platform: process.platform
 });
 

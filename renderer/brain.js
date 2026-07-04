@@ -51,10 +51,11 @@ const SEED_CORPUS = [
 ];
 
 class Brain {
-  // Capacité de la mémoire à long terme (« grossir sa taille d'espace ») :
-  // 4 000 souvenirs ≈ 600 Ko de texte, très loin des limites de stockage —
-  // cinq fois plus de faits conservés qu'avant la v1.0.
-  static MEMORY_CAP = 4000;
+  // Capacité de la mémoire à long terme : 12 000 souvenirs ≈ 1,8 Mo de texte,
+  // encore loin des limites de stockage. L'index inversé (voir
+  // rebuildMemoryIndex) rend la recherche quasi instantanée même à cette
+  // taille — c'est lui qui a permis de tripler la capacité en v1.1.
+  static MEMORY_CAP = 12000;
 
   constructor() {
     // bigrams["mot1 mot2"] = { motSuivant: poids, ... }
@@ -73,6 +74,10 @@ class Brain {
       confidence: 0       // score moyen des dernières générations (0..1)
     };
     this.trainingLog = [];
+    // Sujet de la conversation en cours (mots-clés distinctifs du dernier
+    // rappel réussi) : permet de comprendre les questions de suivi qui ne
+    // répètent pas le sujet (« et sa hauteur ? »).
+    this.lastTopic = [];
   }
 
   // ---------- Apprentissage ----------
@@ -154,7 +159,12 @@ class Brain {
     // sinon une question honnête (« pourquoi le ciel est bleu ») serait
     // rejetée juste parce que « pourquoi » n'apparaît jamais dans le fait
     // appris lui-même.
-    'pourquoi comment quand combien quel quelle quels quelles est-ce bonne'
+    'pourquoi comment quand combien quel quelle quels quelles est-ce bonne ' +
+    // Verbes de conversation (« parle-moi du X », « raconte-moi Y ») : ce
+    // sont des façons de demander, pas des sujets — sans ça, « parle-moi »
+    // était pris pour un sujet distinctif jamais appris et tuait la requête.
+    'parle parle-moi parlez dis dis-moi raconte raconte-moi explique explique-moi ' +
+    'décris décris-moi decris decris-moi montre montre-moi donne donne-moi'
   ).split(' '));
 
   /** Insensible aux accents, pour matcher « théorie »/« theorie », « été »/« ete »… */
@@ -195,7 +205,8 @@ class Brain {
   static GENERIC_HINTS = new Set((
     'nombre habitant habitants population ville village commune pays pay capitale region departement ' +
     'taille hauteur superficie distance monde histoire personne personnes gens gen chose choses truc ' +
-    'exemple definition signification sens sen date annee jour heure nom prenom couleur langue origine'
+    'exemple definition signification sens sen date annee jour heure nom prenom couleur langue origine ' +
+    'altitude vitesse profondeur longueur largeur poid poids age surface temperature'
   ).split(' '));
 
   /** Mots-clés d'un souvenir : son texte + sa source (une phrase issue de
@@ -205,61 +216,144 @@ class Brain {
   }
 
   /**
-   * Fréquence documentaire de chaque mot-clé sur l'ensemble des souvenirs
-   * (dans combien de souvenirs il apparaît, source comprise), mise en cache
-   * et recalculée seulement quand la mémoire change. Sert à distinguer les
-   * mots banals des mots distinctifs — voir recall().
+   * Index de recherche sur la mémoire, reconstruit seulement quand elle
+   * change :
+   *  - _memoryDf   : fréquence documentaire de chaque mot-clé (dans combien
+   *    de souvenirs il apparaît, source comprise) — distingue les mots
+   *    banals des mots distinctifs et sert de pondération par rareté ;
+   *  - _memoryKeys : mots-clés de chaque souvenir, pré-calculés une fois ;
+   *  - _memoryIdx  : index inversé mot-clé → indices des souvenirs, pour ne
+   *    noter que les candidats plausibles au lieu de scanner toute la mémoire.
    */
-  memoryKeywordDf() {
-    if (!this._memoryDf || this._memoryVocabDirty) {
-      this._memoryDf = new Map();
-      for (const m of this.memory) {
-        for (const k of this.memoryEntryKeywords(m)) {
-          this._memoryDf.set(k, (this._memoryDf.get(k) || 0) + 1);
-        }
+  rebuildMemoryIndex() {
+    this._memoryDf = new Map();
+    this._memoryKeys = [];
+    this._memoryIdx = new Map();
+    for (let i = 0; i < this.memory.length; i++) {
+      const ks = this.memoryEntryKeywords(this.memory[i]);
+      this._memoryKeys.push(ks);
+      for (const k of ks) {
+        this._memoryDf.set(k, (this._memoryDf.get(k) || 0) + 1);
+        let bucket = this._memoryIdx.get(k);
+        if (!bucket) this._memoryIdx.set(k, (bucket = []));
+        bucket.push(i);
       }
-      this._memoryVocabDirty = false;
     }
+    this._memoryVocabDirty = false;
+  }
+
+  memoryKeywordDf() {
+    if (!this._memoryDf || this._memoryVocabDirty) this.rebuildMemoryIndex();
     return this._memoryDf;
   }
 
+  /** Vrai si les deux mots sont à une seule faute de frappe l'un de l'autre
+   *  (insertion, suppression ou substitution d'une lettre). */
+  static withinOneEdit(a, b) {
+    if (a === b) return true;
+    const la = a.length, lb = b.length;
+    if (Math.abs(la - lb) > 1) return false;
+    let i = 0, j = 0, edits = 0;
+    while (i < la && j < lb) {
+      if (a[i] === b[j]) { i++; j++; continue; }
+      if (++edits > 1) return false;
+      if (la > lb) i++;
+      else if (lb > la) j++;
+      else { i++; j++; }
+    }
+    return edits + (la - i) + (lb - j) <= 1;
+  }
+
+  /** Corrige une faute de frappe sur un mot-clé : cherche dans le vocabulaire
+   *  de la mémoire un mot connu à une seule édition près. */
+  fuzzyFix(k, df) {
+    if (k.length < 5) return null;
+    let best = null;
+    for (const known of df.keys()) {
+      if (known.length >= 5 && Brain.withinOneEdit(k, known)) {
+        // en cas d'égalité, préfère le mot le plus fréquent dans la mémoire
+        if (!best || (df.get(known) || 0) > (df.get(best) || 0)) best = known;
+      }
+    }
+    return best;
+  }
+
+  /** Détecte ce que la question attend, pour favoriser les souvenirs qui
+   *  contiennent ce type d'information. */
+  questionType(text) {
+    const t = this.foldAccents(text.toLowerCase());
+    if (/(combien|nombre|population|habitant|quantite|superficie|hauteur|taille|distance|profondeur|longueur|largeur|altitude|poid|vitesse)/.test(t)) return 'quantity';
+    if (/(quand|quelle annee|en quelle|quelle date|date de|quel siecle)/.test(t)) return 'date';
+    if (/(c.est quoi|qu.est.ce qu|qui est|qui etait|definition|veut dire|signifie)/.test(t)) return 'definition';
+    return 'general';
+  }
+
   /**
-   * Retrouve le fait le plus pertinent pour une requête, en séparant les
-   * mots-clés en deux familles grâce à leur fréquence dans la mémoire :
+   * Retrouve les faits les plus pertinents pour une requête, classés par
+   * score. Cœur du moteur de réponse depuis la v1.1 :
    *
-   *  - DISTINCTIFS (rares, 5 lettres ou plus — un nom de village, un terme
-   *    précis) : c'est LE sujet de la question. Un souvenir candidat doit
-   *    tous les contenir. S'ils n'ont jamais été appris nulle part, le sujet
-   *    est inconnu → aucune citation, quelles que soient les coïncidences.
-   *  - GÉNÉRIQUES (« nombre », « habitant » — présents dans plein de
-   *    souvenirs) : ils affinent le score mais ne suffisent jamais à eux
-   *    seuls. Exiger leur présence faisait échouer des rappels légitimes
-   *    (l'article sur un village contient « 220 habitants » mais pas le mot
-   *    « nombre ») ; les compter comme sujet faisait citer n'importe quoi.
-   *
-   * Bonus : si la question demande une quantité (combien, nombre,
-   * population…), les souvenirs contenant un chiffre sont favorisés.
+   *  - les mots-clés sont séparés en DISTINCTIFS (rares — le sujet de la
+   *    question, exigés dans chaque souvenir candidat) et GÉNÉRIQUES
+   *    (« nombre », « habitant » — ils affinent le score sans jamais suffire) ;
+   *  - chaque mot compte proportionnellement à sa RARETÉ dans la mémoire
+   *    (log(1 + N/df), l'idée du TF-IDF) : un nom propre pèse beaucoup plus
+   *    qu'un mot banal, ce qui rend les coïncidences inoffensives ;
+   *  - un sujet jamais appris passe d'abord par la correction de fautes de
+   *    frappe (une édition près) ; s'il reste inconnu → aucune citation ;
+   *  - une question de suivi sans sujet propre (« et sa hauteur ? ») hérite
+   *    du sujet du rappel précédent (opts.context) ;
+   *  - le type de question (quantité, date, définition) favorise les
+   *    souvenirs qui contiennent l'information attendue ;
+   *  - seuls les souvenirs indexés sur les mots de la question sont notés
+   *    (index inversé), jamais toute la mémoire.
    */
-  recall(query, minRatio = 0.7) {
-    const qk = [...new Set(this.keywords(query))];
-    if (!qk.length) return null;
+  recallTop(query, limit = 3, opts = {}) {
+    let qk = [...new Set(this.keywords(query))];
+    if (!qk.length && !(opts.context && this.lastTopic.length)) return [];
 
     const df = this.memoryKeywordDf();
-    const distinctive = qk.filter(k =>
-      k.length >= 5 && !Brain.GENERIC_HINTS.has(k) && (df.get(k) || 0) <= 5
-    );
-    if (distinctive.some(k => !(df.get(k) || 0))) return null; // sujet jamais appris
+    const N = Math.max(1, this.memory.length);
+    const rareCap = Math.max(5, Math.round(N * 0.002));
+    const isDistinctive = k => k.length >= 5 && !Brain.GENERIC_HINTS.has(k) && (df.get(k) || 0) <= rareCap;
+    let distinctive = qk.filter(isDistinctive);
 
-    const wantsNumber = /\b(combien|nombre|population|habitant|quantite|taille|hauteur|superficie|distance|annee|age)\b/
-      .test(this.keywords(query).join(' '));
+    // Question de suivi : pas de sujet propre → on reprend le précédent.
+    if (!distinctive.length && opts.context && this.lastTopic.length) {
+      const ctx = this.lastTopic.filter(k => (df.get(k) || 0) > 0);
+      if (ctx.length) {
+        distinctive = ctx.slice();
+        qk = [...new Set([...qk, ...ctx])];
+      }
+    }
 
-    // Sans mot distinctif, on retombe sur l'exigence de majorité stricte.
+    // Sujet jamais appris : peut-être une faute de frappe.
+    const missing = distinctive.filter(k => !(df.get(k) || 0));
+    if (missing.length) {
+      const fixes = new Map();
+      for (const k of missing) {
+        const fix = this.fuzzyFix(k, df);
+        if (!fix) return []; // vraiment inconnu → honnêteté, aucune citation
+        fixes.set(k, fix);
+      }
+      distinctive = distinctive.map(k => fixes.get(k) || k);
+      qk = qk.map(k => fixes.get(k) || k);
+    }
+
+    const type = this.questionType(query);
+
+    // Candidats via l'index inversé.
+    const seeds = distinctive.length ? distinctive : qk;
+    const candidates = new Set();
+    for (const k of seeds) {
+      for (const i of (this._memoryIdx.get(k) || [])) candidates.add(i);
+    }
+
+    // Sans mot distinctif : exigence de majorité stricte (anti-coïncidence).
     const needAtLeast = qk.length <= 2 ? qk.length : Math.max(2, Math.ceil(qk.length * 0.6));
 
-    let best = null;
-    let bestScore = 0;
-    for (const m of this.memory) {
-      const mk = this.memoryEntryKeywords(m);
+    const scored = [];
+    for (const i of candidates) {
+      const mk = this._memoryKeys[i];
       if (distinctive.length && !distinctive.every(k => mk.has(k))) continue;
 
       let matched = 0;
@@ -267,17 +361,70 @@ class Brain {
       for (const k of qk) {
         if (mk.has(k)) {
           matched += 1;
-          score += Math.min(3, Math.max(1, k.length - 3));
+          score += Math.log(1 + N / (df.get(k) || 1));
         }
       }
       if (!distinctive.length) {
         if (matched < needAtLeast) continue;
-        if (matched / qk.length < minRatio) continue;
+        if (matched / qk.length < 0.7) continue;
       }
-      if (wantsNumber && /\d/.test(m.text)) score += 4;
-      if (score > bestScore) { bestScore = score; best = m; }
+      const m = this.memory[i];
+      if (type === 'quantity' && /\d/.test(m.text)) score += 3;
+      if (type === 'date' && /\b(1[0-9]{3}|20[0-9]{2})\b/.test(m.text)) score += 3;
+      if (type === 'definition') {
+        const folded = this.foldAccents(m.text.toLowerCase());
+        if (/^[^,.:;]{0,45}\b(est|etait|sont|designe)\b/.test(folded)) score += 2;
+        // La vraie définition met le sujet EN TÊTE (« Un volcan est… ») —
+        // pas au milieu d'une phrase qui parle d'autre chose.
+        if (distinctive.some(k => { const p = folded.indexOf(k); return p >= 0 && p <= 12; })) score += 2;
+      }
+      scored.push({ m, score, i });
     }
-    return best;
+    scored.sort((a, b) => b.score - a.score);
+
+    if (scored.length && distinctive.length) this.lastTopic = distinctive.slice();
+    return scored.slice(0, limit);
+  }
+
+  /** Compatibilité : meilleur fait unique, comme l'ancien recall(). */
+  recall(query) {
+    const top = this.recallTop(query, 1);
+    return top.length ? top[0].m : null;
+  }
+
+  /**
+   * Réponse complète depuis la mémoire : le meilleur fait, éventuellement
+   * complété par un ou deux faits complémentaires sur le même sujet (assez
+   * bien notés et non redondants avec le premier), avec la ou les sources.
+   * Retourne null si le sujet est inconnu — jamais de réponse inventée.
+   */
+  answerFromMemory(query) {
+    const top = this.recallTop(query, 4, { context: true });
+    if (!top.length) return null;
+
+    const best = top[0];
+    if (best.m.source === 'toi') return 'Tu m\'avais dit : ' + best.m.text;
+
+    const bestKeys = this._memoryKeys[best.i];
+    const parts = [best.m.text];
+    const sources = [best.m.source];
+    for (const cand of top.slice(1)) {
+      if (parts.length >= 3) break;
+      if (cand.m.source === 'toi') continue;
+      if (cand.score < best.score * 0.55) continue;
+      // évite les redites : trop de mots-clés en commun avec le fait retenu
+      const ck = this._memoryKeys[cand.i];
+      let overlap = 0;
+      for (const k of ck) if (bestKeys.has(k)) overlap += 1;
+      if (overlap / Math.max(1, ck.size) > 0.75) continue;
+      parts.push(cand.m.text);
+      if (!sources.includes(cand.m.source)) sources.push(cand.m.source);
+    }
+
+    const intro = sources.length > 1
+      ? `D'après ce que j'ai appris (${sources.map(s => `« ${s} »`).join(', ')}) : `
+      : `D'après ce que j'ai appris sur « ${sources[0]} » : `;
+    return intro + parts.join(' ');
   }
 
   // ---------- Génération ----------
@@ -429,6 +576,18 @@ class Brain {
       .replace(/÷/g, '/')
       .replace(/\bplus\b/g, '+').replace(/\bmoins\b/g, '-')
       .replace(/\bfois\b/g, '*').replace(/\bdivisé par\b|\bdivise par\b/g, '/');
+
+    // Pourcentages : « 20 % de 150 » — cas à part, avant l'arithmétique
+    // générale (le % y signifie modulo).
+    const pct = normalized.match(/(\d+(?:\.\d+)?)\s*%\s*(?:de|du|des)\s*(\d+(?:\.\d+)?)/);
+    if (pct) {
+      const result = parseFloat(pct[1]) / 100 * parseFloat(pct[2]);
+      const pretty = (Math.abs(result - Math.round(result)) < 1e-9
+        ? String(Math.round(result))
+        : String(Math.round(result * 1e6) / 1e6)).replace('.', ',');
+      return `${pct[1].replace('.', ',')} % de ${pct[2].replace('.', ',')} = ${pretty}`;
+    }
+
     const m = normalized.match(/[-(]*\d[\d\s.()+\-*/^%]*\d|\d/);
     if (!m) return null;
     const candidate = m[0].trim();
@@ -560,13 +719,8 @@ class Brain {
     }
 
     this.learn(userText, 1, null);
-    const fact = this.recall(userText);
-    if (fact) {
-      const intro = fact.source === 'toi'
-        ? 'Tu m\'avais dit : '
-        : `D'après ce que j'ai appris sur « ${fact.source} » : `;
-      return intro + fact.text;
-    }
+    const answer = this.answerFromMemory(userText);
+    if (answer) return answer;
 
     // L'app interceptera ce signal pour chercher la réponse sur internet.
     this.lastUnknown = true;

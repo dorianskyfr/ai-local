@@ -1,13 +1,16 @@
 # AI Local — v1.5
 
-> ## 🏁 Fin du développement
+> ## 🏁 Fin du développement — avec un dernier cadeau 🎁
 > **AI Local v1.5.0 est la version finale.** Le développement actif est terminé :
-> aucune nouvelle version n'est prévue. L'application reste entièrement
-> fonctionnelle et téléchargeable : le chat, l'entraînement, le LLM local et la
-> génération d'images continuent de marcher sans aucun serveur — tout tourne sur
-> ta machine. Le modèle communautaire reste synchronisé tant que ce dépôt existe.
-> En dernier cadeau, la v1.5.0 est aussi disponible **pour Linux** 🐧 (AppImage
-> et .deb). Merci à tous ceux qui ont utilisé l'app et fait grandir le modèle. ❤
+> aucune nouvelle version n'est prévue. Et pour dire merci, elle arrive avec un
+> dernier cadeau : **AI Local est désormais aussi disponible sur Linux** 🐧
+> (AppImage toutes distributions + paquet .deb, dans les
+> [Releases](https://github.com/dorianskyfr/ai-local/releases)). L'application
+> reste entièrement fonctionnelle et téléchargeable : le chat, l'entraînement,
+> le LLM local et la génération d'images continuent de marcher sans aucun
+> serveur — tout tourne sur ta machine. Le modèle communautaire reste
+> synchronisé tant que ce dépôt existe. Merci à tous ceux qui ont utilisé l'app
+> et fait grandir le modèle. ❤
 
 Application de bureau (Windows `.exe`) avec une interface de chat façon ChatGPT / Claude,
 embarquant un **modèle d'IA local qui s'entraîne tout seul** — sur du texte via internet

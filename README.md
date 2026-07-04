@@ -1,5 +1,13 @@
 # AI Local — v1.5
 
+> ## 🏁 Fin du développement
+> **AI Local v1.5.0 est la version finale.** Le développement actif est terminé :
+> aucune nouvelle version n'est prévue. L'application reste entièrement
+> fonctionnelle et téléchargeable : le chat, l'entraînement, le LLM local et la
+> génération d'images continuent de marcher sans aucun serveur — tout tourne sur
+> ta machine. Le modèle communautaire reste synchronisé tant que ce dépôt existe.
+> Merci à tous ceux qui ont utilisé l'app et fait grandir le modèle. ❤
+
 Application de bureau (Windows `.exe`) avec une interface de chat façon ChatGPT / Claude,
 embarquant un **modèle d'IA local qui s'entraîne tout seul** — sur du texte via internet
 (y compris une recherche libre sur tout le web), et sur la génération d'images et de vidéos.

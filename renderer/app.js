@@ -204,8 +204,15 @@ function createConversation() {
   conversations.unshift(conv);
   while (conversations.length > MAX_CONVERSATIONS) conversations.pop();
   currentConvId = conv.id;
-  if (window.llm) window.llm.resetChat(); // le LLM repart d'une session vierge
+  resetChatContext(); // LLM et sujet de suivi repartent de zéro
   return conv;
+}
+
+/** Une conversation = un contexte : ni l'historique LLM ni le sujet de
+ *  suivi du rappel de faits ne doivent fuir d'une conversation à l'autre. */
+function resetChatContext() {
+  brain.lastTopic = [];
+  if (window.llm) window.llm.resetChat();
 }
 
 function currentConv() {
@@ -214,7 +221,7 @@ function currentConv() {
 
 function switchConversation(id) {
   currentConvId = id;
-  if (window.llm) window.llm.resetChat(); // l'historique LLM ne suit pas entre conversations
+  resetChatContext();
   saveConversations();
   renderConversationList();
   renderMessages();
@@ -227,7 +234,10 @@ function deleteConversation(id, event) {
   if (idx === -1) return;
   conversations.splice(idx, 1);
   if (!conversations.length) createConversation();
-  if (currentConvId === id) currentConvId = conversations[0].id;
+  if (currentConvId === id) {
+    currentConvId = conversations[0].id;
+    resetChatContext(); // la conversation affichée change : contexte remis à zéro
+  }
   saveConversations();
   renderConversationList();
   renderMessages();
@@ -446,6 +456,10 @@ function extractSubject(text) {
 /* ---------- Envoi d'un message ---------- */
 
 function handleSend() {
+  // Garde anti-réentrance : Entrée pendant qu'une réponse est en cours
+  // déclenchait un second envoi concurrent (double indicateur de frappe,
+  // générations LLM en collision).
+  if (sendBtn.disabled) return;
   const text = inputEl.value.trim();
   if (!text) return;
 
@@ -918,7 +932,7 @@ function stopTraining() {
   stopPreview();
   setTrainingUI(false);
   feedEntry('⏹ Entraînement arrêté. Le modèle a conservé tout ce qu\'il a appris.');
-  updatePresence('Discute avec son IA locale', 'AI Local v1.0');
+  updatePresence('Discute avec son IA locale', appVersionLabel);
 }
 
 trainStartBtn.addEventListener('click', () => {
@@ -1048,6 +1062,16 @@ refreshTokenUI();
 const DISCORD_KEY = 'ai-local-discord-appid';
 const presenceStart = Date.now();
 
+// Libellé de version dynamique (badge + présence Discord) — jamais codé en dur.
+let appVersionLabel = 'AI Local';
+if (window.appInfo && window.appInfo.getVersion) {
+  window.appInfo.getVersion().then((v) => {
+    appVersionLabel = 'AI Local v' + v;
+    const badge = document.querySelector('.version-badge');
+    if (badge) badge.textContent = 'v' + v.split('.').slice(0, 2).join('.');
+  }).catch(() => {});
+}
+
 function updatePresence(details, state) {
   const clientId = (localStorage.getItem(DISCORD_KEY) || '').trim();
   if (!clientId || !window.native || !window.native.discordPresence) return;
@@ -1065,7 +1089,7 @@ discordSaveBtn.addEventListener('click', () => {
   localStorage.setItem(DISCORD_KEY, id);
   if (id) {
     discordStatusEl.textContent = '✓ Présence activée (Discord doit être ouvert sur ce PC).';
-    updatePresence('Discute avec son IA locale', 'AI Local v1.0');
+    updatePresence('Discute avec son IA locale', appVersionLabel);
   } else {
     discordStatusEl.textContent = 'Présence désactivée.';
     if (window.native && window.native.discordPresence) window.native.discordPresence({ clientId: '' });
@@ -1214,5 +1238,5 @@ renderConversationList();
 renderMessages();
 updateStats();
 syncSharedModel();
-updatePresence('Discute avec son IA locale', 'AI Local v1.0');
+updatePresence('Discute avec son IA locale', appVersionLabel);
 inputEl.focus();

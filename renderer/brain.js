@@ -326,6 +326,11 @@ class Brain {
       }
     }
 
+    // Question composée uniquement de mots d'attribut (« altitude »,
+    // « population »…) sans sujet ni contexte hérité : impossible de savoir
+    // de QUOI on parle — aucune citation plutôt qu'une coïncidence.
+    if (!distinctive.length && qk.every(k => Brain.GENERIC_HINTS.has(k))) return [];
+
     // Sujet jamais appris : peut-être une faute de frappe.
     const missing = distinctive.filter(k => !(df.get(k) || 0));
     if (missing.length) {

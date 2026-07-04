@@ -46,6 +46,10 @@ const BROWSER_HEADERS = {
   'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7'
 };
 
+// Source unique de vérité pour la version affichée (badge, présence Discord) :
+// celle de l'app elle-même — plus jamais de numéro codé en dur qui périme.
+ipcMain.handle('app-version', () => app.getVersion());
+
 ipcMain.handle('net-fetch', async (_event, url) => {
   try {
     const res = await fetch(url, {

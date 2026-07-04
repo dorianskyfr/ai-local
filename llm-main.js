@@ -40,8 +40,10 @@ const CATALOG = {
   },
   'qwen2.5-7b': {
     label: 'Qwen 2.5 · 7 milliards (le plus malin, ~4,7 Go, 8 Go de RAM min.)',
-    file: 'qwen2.5-7b-instruct-q4_k_m.gguf',
-    url: 'https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF/resolve/main/qwen2.5-7b-instruct-q4_k_m.gguf',
+    // Miroir mono-fichier : le dépôt officiel scinde les gros GGUF en
+    // plusieurs morceaux, ce que le téléchargeur intégré ne recolle pas.
+    file: 'Qwen2.5-7B-Instruct-Q4_K_M.gguf',
+    url: 'https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF/resolve/main/Qwen2.5-7B-Instruct-Q4_K_M.gguf',
     approxMo: 4700,
     license: 'Apache 2.0'
   }
@@ -286,7 +288,11 @@ function registerLlmIpc() {
   });
 
   ipcMain.on('llm-reset-chat', async () => {
-    try { if (!state.generating) await resetSession(); } catch (e) { state.lastError = String(e.message || e); }
+    // Pendant une génération, on ne peut pas détruire le contexte en cours :
+    // le reset est mémorisé et appliqué dès la fin de la génération (sinon
+    // l'historique de l'ancienne conversation fuyait dans la nouvelle).
+    if (state.generating) { state.pendingReset = true; return; }
+    try { await resetSession(); } catch (e) { state.lastError = String(e.message || e); }
   });
 
   ipcMain.on('llm-abort', () => {
@@ -316,6 +322,10 @@ function registerLlmIpc() {
     } finally {
       state.generating = false;
       state.abort = null;
+      if (state.pendingReset) {
+        state.pendingReset = false;
+        try { await resetSession(); } catch (e) { state.lastError = String(e.message || e); }
+      }
     }
   });
 }

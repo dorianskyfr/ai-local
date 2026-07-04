@@ -1,10 +1,10 @@
-# AI Local — v1.0
+# AI Local — v1.1
 
 Application de bureau (Windows `.exe`) avec une interface de chat façon ChatGPT / Claude,
 embarquant un **modèle d'IA local qui s'entraîne tout seul** — sur du texte via internet
 (y compris une recherche libre sur tout le web), et sur la génération d'images et de vidéos.
 
-![version](https://img.shields.io/badge/version-1.0.0-orange)
+![version](https://img.shields.io/badge/version-1.1.0-orange)
 
 ## ✨ Fonctionnalités
 
@@ -15,7 +15,15 @@ embarquant un **modèle d'IA local qui s'entraîne tout seul** — sur du texte 
   au lancement (titres automatiques, suppression au survol).
 - **Mémoire à long terme** : le modèle retient des faits de ses lectures et de tes
   messages ; pose-lui une question sur un sujet étudié et il répond en **citant sa
-  source** (« D'après ce que j'ai appris sur “Volcan” : … »).
+  source** (« D'après ce que j'ai appris sur “Volcan” : … »). Depuis la v1.1, la
+  réponse peut **combiner plusieurs faits complémentaires** sur le sujet, et la
+  recherche est **pondérée par la rareté des mots** (le principe du TF-IDF) sur un
+  **index inversé** — précise et quasi instantanée même avec des milliers de souvenirs.
+- **Questions de suivi comprises** : le modèle retient le sujet de l'échange en
+  cours — « et sa hauteur ? » est rattaché au sujet précédent au lieu d'échouer.
+- **Tolérance aux fautes de frappe** : une lettre erronée, manquante ou en trop
+  dans le sujet est corrigée automatiquement (une seule faute maximum, pour ne
+  jamais répondre à côté).
 - **Multimodal** : demande-lui « dessine un coucher de soleil » ou
   « fais une vidéo de l'océan » et il compose une vraie scène (ciel, soleil,
   montagnes, vagues animées) colorée d'après de vraies photos du sujet.
@@ -26,9 +34,10 @@ embarquant un **modèle d'IA local qui s'entraîne tout seul** — sur du texte 
   mécanisme de réponse, qu'il s'agisse d'une question formelle ou d'un sujet
   évoqué sans syntaxe de question — un fait connu cité avec sa source, ou un
   aveu honnête qu'il ne sait pas, jamais une phrase inventée.
-- **Calculatrice et horloge exactes** : « combien font 127 × 43 ? », « quelle
-  heure il est ? », « quel jour sommes-nous ? » — réponses déterministes,
-  toujours justes.
+- **Calculatrice et horloge exactes** : « combien font 127 × 43 ? », « 20 % de
+  150 ? », « quelle heure il est ? », « quel jour sommes-nous ? » — réponses
+  déterministes, toujours justes (opérations, parenthèses, puissances,
+  pourcentages, décimales à la française).
 - **Confidences personnelles reconnues** : « mon chien s'appelle Rex » reçoit
   un accusé de réception chaleureux et reste en mémoire pour plus tard.
 
@@ -96,6 +105,9 @@ Les `.exe` sont compilés automatiquement par GitHub Actions (workflow **Build W
 
 ## 📝 Notes de version
 
+- [v1.1.0](docs/releases/v1.1.0.md) — moteur de rappel repensé (pondération par
+  rareté, index inversé, réponses multi-faits), questions de suivi, tolérance
+  aux fautes de frappe, mémoire ×3, pourcentages dans la calculatrice.
 - [v1.0.0](docs/releases/v1.0.0.md) — recherche à la demande en texte intégral
   (les faits chiffrés sont enfin trouvés), mode personnalisé recalibré,
   calculatrice et horloge exactes, mémoire ×5, paliers étendus avec échelle
@@ -141,11 +153,16 @@ npm run dist:win   # compile les .exe (sous Windows)
   reconnue, soit d'un fait appris cité avec sa source (rappel par proportion de
   mots-clés partagés, insensible aux accents), soit d'un aveu honnête. Un filtre
   écarte les phrases de mauvaise qualité (listes de codes/lieux) à l'apprentissage.
-- **Mémoire** : les phrases apprises avec une source deviennent des « souvenirs » ;
-  une question déclenche une recherche par mots-clés et le meilleur fait est cité
-  avec sa source. Garde-fou anti-coïncidence : si la question contient un mot
-  distinctif jamais appris nulle part, aucune citation n'est proposée, même si
-  d'autres mots génériques coïncident par hasard avec un souvenir.
+- **Mémoire** : les phrases apprises avec une source deviennent des « souvenirs »,
+  indexés dans un index inversé (mot-clé → souvenirs). Une question déclenche une
+  recherche pondérée par la rareté de chaque mot (TF-IDF) ; les meilleurs faits
+  complémentaires sont combinés et cités avec leurs sources. Le type de question
+  (quantité, date, définition) favorise les souvenirs qui contiennent l'information
+  attendue ; une question de suivi hérite du sujet précédent ; une faute de frappe
+  d'une lettre est corrigée depuis le vocabulaire appris. Garde-fou
+  anti-coïncidence : si la question contient un mot distinctif jamais appris nulle
+  part (même après correction), aucune citation n'est proposée, même si d'autres
+  mots génériques coïncident par hasard avec un souvenir.
 - **Images / vidéos** (`renderer/vision.js`) : un « génome » de génération (palette,
   formes, symétrie, grain, dynamique) évolue par mutation ; à chaque cycle les
   candidats sont notés par des heuristiques esthétiques et le meilleur survit.

@@ -8,7 +8,8 @@
   "license": "MIT",
   "scripts": {
     "start": "electron .",
-    "dist:win": "electron-builder --win --x64 --publish never"
+    "dist:win": "electron-builder --win --x64 --publish never",
+    "dist:linux": "electron-builder --linux --x64 --publish never"
   },
   "devDependencies": {
     "electron": "^31.0.0",
@@ -56,6 +57,31 @@
     },
     "portable": {
       "artifactName": "AI-Local-${version}-portable.exe"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Utility",
+      "maintainer": "dorianskyfr <211799238+dorianskyfr@users.noreply.github.com>",
+      "synopsis": "Chat IA 100 % local qui s'entraîne tout seul"
+    },
+    "appImage": {
+      "artifactName": "AI-Local-${version}.AppImage"
+    },
+    "deb": {
+      "artifactName": "ai-local_${version}_amd64.deb"
     }
   },
   "dependencies": {

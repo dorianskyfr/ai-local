@@ -1,4 +1,4 @@
-name: Build Windows .exe
+name: Build Windows .exe + Linux
 
 on:
   push:
@@ -60,6 +60,54 @@ jobs:
           files: dist/*.exe
           body_path: ${{ steps.notes.outputs.path }}
           generate_release_notes: ${{ steps.notes.outputs.path == '' }}
+
+  # Version Linux : AppImage (portable, toutes distributions) + paquet .deb
+  # (Ubuntu/Debian). Publiée dans la même release que les .exe Windows.
+  # `needs: build` sérialise les deux publications sur la release pour éviter
+  # qu'elles ne tentent de créer le même tag en même temps.
+  build-linux:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Linux packages
+        run: npm run dist:linux
+
+      - name: Read app version
+        id: pkg
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: AI-Local-linux
+          path: |
+            dist/*.AppImage
+            dist/*.deb
+          if-no-files-found: error
+
+      # Ajoute les fichiers Linux à la release existante (créée par le job
+      # Windows) sans toucher à son titre ni à sa note de version.
+      - name: Attach Linux files to release
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', steps.pkg.outputs.version) }}
+          files: |
+            dist/*.AppImage
+            dist/*.deb
 
   # À chaque release, le README principal (branche main) et les notes de
   # version sont synchronisés depuis le code publié.

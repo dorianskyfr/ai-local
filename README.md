@@ -6,7 +6,8 @@
 > fonctionnelle et téléchargeable : le chat, l'entraînement, le LLM local et la
 > génération d'images continuent de marcher sans aucun serveur — tout tourne sur
 > ta machine. Le modèle communautaire reste synchronisé tant que ce dépôt existe.
-> Merci à tous ceux qui ont utilisé l'app et fait grandir le modèle. ❤
+> En dernier cadeau, la v1.5.0 est aussi disponible **pour Linux** 🐧 (AppImage
+> et .deb). Merci à tous ceux qui ont utilisé l'app et fait grandir le modèle. ❤
 
 Application de bureau (Windows `.exe`) avec une interface de chat façon ChatGPT / Claude,
 embarquant un **modèle d'IA local qui s'entraîne tout seul** — sur du texte via internet
@@ -117,13 +118,17 @@ nourri par la mémoire auto-apprise (RAG).
 ### 🎮 Discord
 - Rich Presence en option : « S'entraîne : les volcans » sur ton profil Discord.
 
-## 📦 Télécharger le `.exe`
+## 📦 Télécharger (Windows et Linux)
 
-Les `.exe` sont compilés automatiquement par GitHub Actions (workflow **Build Windows .exe**) :
+Tous les fichiers sont compilés automatiquement par GitHub Actions et publiés
+dans les **Releases** : https://github.com/dorianskyfr/ai-local/releases
 
-- **Releases** : https://github.com/dorianskyfr/ai-local/releases —
-  `AI-Local-x.y.z-portable.exe` (aucune installation) et `AI Local Setup x.y.z.exe` (installateur).
-- Ou onglet **Actions** → dernier run vert → artefact `AI-Local-windows`.
+- **Windows** : `AI-Local-x.y.z-portable.exe` (aucune installation) ou
+  `AI Local Setup x.y.z.exe` (installateur, mises à jour auto).
+- **Linux** 🐧 : `AI-Local-x.y.z.AppImage` (toutes distributions —
+  `chmod +x` puis lancer) ou `ai-local_x.y.z_amd64.deb` (Ubuntu/Debian —
+  `sudo apt install ./ai-local_x.y.z_amd64.deb`).
+- Ou onglet **Actions** → dernier run vert → artefacts `AI-Local-windows` / `AI-Local-linux`.
 
 ## 📝 Notes de version
 

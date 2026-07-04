@@ -31,16 +31,34 @@ function computeCustomSpeed(cores, ramGo) {
   // incontrôlée de requêtes.
   const safeCores = Number.isFinite(cores) && cores > 0 ? cores : 4;
   const safeRam = Number.isFinite(ramGo) && ramGo > 0 ? ramGo : 8;
-  const powerCores = Math.min(1, safeCores / 16);
-  const powerRam = Math.min(1, safeRam / 32);
-  const power = powerCores * 0.6 + powerRam * 0.4;
-  const text = Math.round(SPEEDS.eco.text - power * (SPEEDS.eco.text - SPEEDS.eclair.text));
-  const media = Math.round(SPEEDS.eco.media - power * (SPEEDS.eco.media - SPEEDS.eclair.media));
+
+  // Barème recalibré (v1.0) : l'ancienne interpolation linéaire exigeait
+  // 16 cœurs ET 32 Go pour atteindre le haut du barème — un PC de jeu à
+  // 12 cœurs/15 Go obtenait 3,8 s par cycle, PLUS LENT que le préréglage
+  // Turbo, ce qui donnait l'impression que le mode ne marchait pas.
+  // Désormais : 12 cœurs/16 Go ≈ Éclair, 4 cœurs/8 Go ≈ Rapide, et
+  // l'interpolation est géométrique pour que chaque cran du curseur ait un
+  // effet perceptible sur toute la plage.
+  const power = Math.min(1, (safeCores / 12) * 0.7 + (safeRam / 16) * 0.3);
+  const text = Math.round(SPEEDS.eco.text * Math.pow(SPEEDS.eclair.text / SPEEDS.eco.text, power));
+  const media = Math.round(SPEEDS.eco.media * Math.pow(SPEEDS.eclair.media / SPEEDS.eco.media, power));
   // Filet de sécurité final : jamais en dessous du plancher d'Éclair.
   return {
     text: Math.max(SPEEDS.eclair.text, text),
     media: Math.max(SPEEDS.eclair.media, media)
   };
+}
+
+/** Nom du préréglage le plus proche d'une cadence donnée (pour l'affichage). */
+function nearestPresetLabel(textMs) {
+  let bestKey = 'normal';
+  let bestDiff = Infinity;
+  for (const key in SPEEDS) {
+    if (SPEEDS[key].isCustom) continue;
+    const diff = Math.abs(Math.log(textMs) - Math.log(SPEEDS[key].text));
+    if (diff < bestDiff) { bestDiff = diff; bestKey = key; }
+  }
+  return SPEEDS[bestKey].label;
 }
 
 /*
@@ -245,8 +263,8 @@ function welcomeHtml() {
       <p>Je suis une IA locale qui apprend toute seule. Parle-moi ici, entraîne-moi
       dans l'onglet <strong>S'entraîner</strong>, et pose-moi des questions sur ce que
       j'ai étudié : je réponds avec ma mémoire et je cite mes sources.</p>
-      <p class="welcome-tip">Astuce : demande-moi « dessine un coucher de soleil »
-      ou « fais une vidéo de l'océan ».</p>
+      <p class="welcome-tip">Astuce : « dessine un coucher de soleil », « fais une
+      vidéo de l'océan », « combien font 127 × 43 ? » ou « quelle heure il est ? ».</p>
     </div>`;
 }
 
@@ -500,7 +518,10 @@ function handleSend() {
         typing.querySelector('.bubble').insertAdjacentHTML('beforeend',
           '<span class="searching-note">🔎 je cherche sur internet…</span>');
         try {
-          const { results } = await Trainer.fetchBatch(Trainer.resolveSources('all', query), query);
+          // fullText : pour répondre à une question précise, il faut lire
+          // l'article en entier — la population d'un village, une date, un
+          // chiffre ne sont presque jamais dans l'intro.
+          const { results } = await Trainer.fetchBatch(Trainer.resolveSources('all', query), query, { fullText: true });
           for (const r of results) brain.learn(r.extract, 1, r.title);
           const fact = brain.recall(text) || brain.recall(query);
           if (fact) {
@@ -612,7 +633,7 @@ function refreshCustomSpeed() {
   customCoresValEl.textContent = String(cores);
   customRamValEl.textContent = ram + ' Go';
   Object.assign(SPEEDS.custom, computeCustomSpeed(cores, ram));
-  customSpeedNoteEl.textContent = `⚙ Cadence estimée : 1 cycle toutes les ${(SPEEDS.custom.text / 1000).toLocaleString('fr-FR')} s (texte) / ${(SPEEDS.custom.media / 1000).toLocaleString('fr-FR')} s (médias). Ceci règle la cadence, ça ne réserve pas littéralement ces ressources.`;
+  customSpeedNoteEl.textContent = `⚙ Cadence : 1 cycle toutes les ${(SPEEDS.custom.text / 1000).toLocaleString('fr-FR')} s (texte) / ${(SPEEDS.custom.media / 1000).toLocaleString('fr-FR')} s (médias) — équivalent ≈ ${nearestPresetLabel(SPEEDS.custom.text)}. Ceci règle la cadence, ça ne réserve pas littéralement ces ressources.`;
 }
 refreshCustomSpeed();
 
@@ -833,7 +854,7 @@ function stopTraining() {
   stopPreview();
   setTrainingUI(false);
   feedEntry('⏹ Entraînement arrêté. Le modèle a conservé tout ce qu\'il a appris.');
-  updatePresence('Discute avec son IA locale', 'AI Local v0.9');
+  updatePresence('Discute avec son IA locale', 'AI Local v1.0');
 }
 
 trainStartBtn.addEventListener('click', () => {
@@ -878,6 +899,20 @@ function updateMilestones() {
     document.getElementById('milestone-text'), document.getElementById('milestone-text-name'), MILESTONE_TEXT_KEY);
   renderMilestone('image', vision.getMilestone(),
     document.getElementById('milestone-image'), document.getElementById('milestone-image-name'), MILESTONE_IMAGE_KEY);
+
+  // Taille réelle du modèle sur disque + échelle honnête. Comparer les
+  // paliers à GPT ou Claude comme des égaux serait un mensonge affiché :
+  // on donne plutôt les vrais ordres de grandeur, et la fierté de ce que
+  // CE modèle-là a réellement appris.
+  const bytes = (localStorage.getItem('ai-local-brain-v1') || '').length +
+    (localStorage.getItem('ai-local-vision-v1') || '').length;
+  const size = bytes > 1048576
+    ? (bytes / 1048576).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' Mo'
+    : Math.max(1, Math.round(bytes / 1024)) + ' Ko';
+  const scaleEl = document.getElementById('scale-note');
+  if (scaleEl) {
+    scaleEl.textContent = `Taille du modèle : ${size} · ${brain.getStats().vocabSize.toLocaleString('fr-FR')} mots de vocabulaire. Échelle honnête : GPT-4 pèse ~3 000 000× plus — les paliers mesurent TA progression, pas une équivalence.`;
+  }
 }
 
 /* ---------- Modèle partagé (GitHub) ---------- */
@@ -966,7 +1001,7 @@ discordSaveBtn.addEventListener('click', () => {
   localStorage.setItem(DISCORD_KEY, id);
   if (id) {
     discordStatusEl.textContent = '✓ Présence activée (Discord doit être ouvert sur ce PC).';
-    updatePresence('Discute avec son IA locale', 'AI Local v0.9');
+    updatePresence('Discute avec son IA locale', 'AI Local v1.0');
   } else {
     discordStatusEl.textContent = 'Présence désactivée.';
     if (window.native && window.native.discordPresence) window.native.discordPresence({ clientId: '' });
@@ -981,5 +1016,5 @@ renderConversationList();
 renderMessages();
 updateStats();
 syncSharedModel();
-updatePresence('Discute avec son IA locale', 'AI Local v0.9');
+updatePresence('Discute avec son IA locale', 'AI Local v1.0');
 inputEl.focus();

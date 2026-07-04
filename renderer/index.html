@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Local — v0.9</title>
+  <title>AI Local — v1.0</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -15,7 +15,7 @@
         <div class="logo">
           <span class="logo-dot"></span>
           <span class="logo-text">AI Local</span>
-          <span class="version-badge">v0.9</span>
+          <span class="version-badge">v1.0</span>
         </div>
       </div>
 
@@ -47,6 +47,7 @@
             </div>
           </div>
         </div>
+        <p id="scale-note" class="share-status"></p>
         <div class="stats">
           <div class="stat-row"><span>Cycles</span><strong id="stat-epochs">0</strong></div>
           <div class="stat-row"><span>Vocabulaire</span><strong id="stat-vocab">0</strong></div>
@@ -74,6 +75,22 @@
         <p class="share-status share-security-note" title="Un secret capable d'écrire sur GitHub ne peut pas être intégré à un exécutable public : il serait extractible et révoqué par la détection de fuite de GitHub, cassant le partage pour tout le monde. Chacun utilise son propre jeton gratuit (github.com/settings/tokens).">
         ℹ Pas de jeton unique intégré (raison de sécurité — survole pour les détails) :
         chacun utilise le sien, gratuit.</p>
+        <details class="share-details">
+          <summary>Comment ça marche ?</summary>
+          <ol>
+            <li><strong>Au démarrage</strong>, l'app télécharge le modèle communautaire
+            (<code>shared-model/model.json</code>) depuis le dépôt GitHub public —
+            aucun compte requis, ça marche pour tout le monde.</li>
+            <li><strong>Fusion</strong> avec ton modèle local : vocabulaires réunis,
+            transitions additionnées, souvenirs dédupliqués. Tu ne perds jamais rien,
+            tu gagnes ce que les autres ont appris.</li>
+            <li><strong>Publication</strong> : toutes les 300 phrases apprises pendant
+            un entraînement, ton modèle fusionné est republié sur GitHub (révision +1)
+            — uniquement si un jeton est configuré.</li>
+            <li><strong>Ne voyagent jamais</strong> : tes conversations, tes souvenirs
+            personnels (« tu m'avais dit… ») et ton jeton restent sur ta machine.</li>
+          </ol>
+        </details>
       </div>
 
       <div class="sidebar-section share-section">

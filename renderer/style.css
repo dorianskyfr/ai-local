@@ -164,6 +164,20 @@ body {
 .share-section { flex: 0 0 auto; }
 .share-status { font-size: 12px; color: var(--text-dim); line-height: 1.45; }
 .share-security-note { font-size: 11px; opacity: 0.8; }
+
+.share-details { font-size: 12px; color: var(--text-dim); }
+.share-details summary {
+  cursor: pointer; color: var(--accent); font-weight: 600;
+  padding: 2px 0; user-select: none;
+}
+.share-details ol {
+  margin: 6px 0 2px 16px; display: flex; flex-direction: column; gap: 6px;
+  line-height: 1.45;
+}
+.share-details code {
+  background: var(--bg-input); border-radius: 4px; padding: 0 4px; font-size: 11px;
+}
+.share-details strong { color: var(--text); }
 .share-token-row { display: flex; gap: 6px; }
 .share-token-row input {
   flex: 1; min-width: 0;

@@ -1,10 +1,10 @@
-# AI Local — v0.9
+# AI Local — v1.0
 
 Application de bureau (Windows `.exe`) avec une interface de chat façon ChatGPT / Claude,
 embarquant un **modèle d'IA local qui s'entraîne tout seul** — sur du texte via internet
 (y compris une recherche libre sur tout le web), et sur la génération d'images et de vidéos.
 
-![version](https://img.shields.io/badge/version-0.9.0-orange)
+![version](https://img.shields.io/badge/version-1.0.0-orange)
 
 ## ✨ Fonctionnalités
 
@@ -26,6 +26,9 @@ embarquant un **modèle d'IA local qui s'entraîne tout seul** — sur du texte 
   mécanisme de réponse, qu'il s'agisse d'une question formelle ou d'un sujet
   évoqué sans syntaxe de question — un fait connu cité avec sa source, ou un
   aveu honnête qu'il ne sait pas, jamais une phrase inventée.
+- **Calculatrice et horloge exactes** : « combien font 127 × 43 ? », « quelle
+  heure il est ? », « quel jour sommes-nous ? » — réponses déterministes,
+  toujours justes.
 - **Confidences personnelles reconnues** : « mon chien s'appelle Rex » reçoit
   un accusé de réception chaleureux et reste en mémoire pour plus tard.
 
@@ -93,6 +96,10 @@ Les `.exe` sont compilés automatiquement par GitHub Actions (workflow **Build W
 
 ## 📝 Notes de version
 
+- [v1.0.0](docs/releases/v1.0.0.md) — recherche à la demande en texte intégral
+  (les faits chiffrés sont enfin trouvés), mode personnalisé recalibré,
+  calculatrice et horloge exactes, mémoire ×5, paliers étendus avec échelle
+  honnête, modèle partagé documenté dans l'app.
 - [v0.9.0](docs/releases/v0.9.0.md) — rappel de faits enfin fiable avec une grosse
   mémoire (garde-fou sur les mots jamais appris), contractions françaises séparées,
   mode personnalisé assaini (anti-rebond, garde-fous numériques).

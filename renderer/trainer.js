@@ -83,13 +83,19 @@ function firstPage(data) {
   return null;
 }
 
-async function fetchFromMediaWiki(sourceKey, topic) {
+async function fetchFromMediaWiki(sourceKey, topic, opts = {}) {
   const src = MEDIAWIKI_SOURCES[sourceKey];
+  // Par défaut on ne lit que l'intro (rapide, suffisant pour l'entraînement
+  // en volume). En mode fullText — utilisé quand le chat cherche la réponse
+  // à une question précise — on lit l'article en entier : les données
+  // factuelles (population d'un village, dates…) ne sont presque jamais
+  // dans l'intro mais dans le corps de l'article.
+  const extractParams = opts.fullText
+    ? { prop: 'extracts', explaintext: '1', exlimit: 'max', exchars: '6000' }
+    : { prop: 'extracts', explaintext: '1', exintro: '1', exlimit: 'max' };
   const params = topic
-    ? { generator: 'search', gsrsearch: topic, gsrlimit: '3', gsrnamespace: '0',
-        prop: 'extracts', explaintext: '1', exintro: '1', exlimit: 'max' }
-    : { generator: 'random', grnnamespace: '0', grnlimit: '3',
-        prop: 'extracts', explaintext: '1', exintro: '1', exlimit: 'max' };
+    ? { generator: 'search', gsrsearch: topic, gsrlimit: '3', gsrnamespace: '0', ...extractParams }
+    : { generator: 'random', grnnamespace: '0', grnlimit: '3', ...extractParams };
   const page = firstPage(await wikiQuery(src.api, params));
   if (!page) return null;
   return { sourceLabel: src.label, title: page.title, extract: page.extract };
@@ -312,7 +318,7 @@ async function fetchFromPDF(url) {
  * Interroge plusieurs sources en même temps.
  * @returns {Promise<{results: Array, errors: Array}>}
  */
-async function fetchBatch(sourceKeys, topic) {
+async function fetchBatch(sourceKeys, topic, opts = {}) {
   const jobs = sourceKeys.map(key => {
     if (key === 'rss') return fetchFromRSS(topic);
     if (key === 'youtube') return fetchFromYouTube(topic);
@@ -320,7 +326,7 @@ async function fetchBatch(sourceKeys, topic) {
     if (key === 'web') return fetchFromWebSearch(topic);
     if (key === 'webpage') return fetchFromURL(topic);
     if (key === 'video-oembed') return fetchFromVideoOEmbed(topic);
-    return fetchFromMediaWiki(key, topic);
+    return fetchFromMediaWiki(key, topic, opts);
   });
   const settled = await Promise.allSettled(jobs);
   const results = [];

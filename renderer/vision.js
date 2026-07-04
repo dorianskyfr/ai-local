@@ -21,7 +21,9 @@ const IMAGE_TIERS = [
   { min: 60,  name: 'Coloriste',                icon: '🌈' },
   { min: 150, name: 'Compositeur de scènes',    icon: '🖼️' },
   { min: 350, name: 'Artiste confirmé',         icon: '🏆' },
-  { min: 700, name: 'Maître générateur',        icon: '✨' }
+  { min: 700, name: 'Maître générateur',        icon: '✨' },
+  { min: 1500, name: 'Virtuose du pixel',       icon: '🎇' },
+  { min: 3500, name: 'Légende du pinceau',      icon: '👑' }
 ];
 
 class Vision {

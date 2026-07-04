@@ -21,14 +21,18 @@ const STORAGE_KEY = 'ai-local-brain-v1';
  * repère de progression personnelle, comme un niveau de jeu.
  */
 const TEXT_TIERS = [
-  { min: 0,     name: 'Graine',                 icon: '🌱' },
-  { min: 150,   name: 'Pousse',                 icon: '🌿' },
-  { min: 400,   name: 'Curieux',                icon: '🔍' },
-  { min: 900,   name: 'Étudiant assidu',         icon: '📚' },
-  { min: 1800,  name: 'Érudit local',            icon: '🎓' },
-  { min: 3500,  name: 'Bibliothèque ambulante',  icon: '📖' },
-  { min: 6000,  name: 'Sage du village',         icon: '🧙' },
-  { min: 10000, name: 'Oracle local',            icon: '🔮' }
+  { min: 0,      name: 'Graine',                 icon: '🌱' },
+  { min: 150,    name: 'Pousse',                 icon: '🌿' },
+  { min: 400,    name: 'Curieux',                icon: '🔍' },
+  { min: 900,    name: 'Étudiant assidu',         icon: '📚' },
+  { min: 1800,   name: 'Érudit local',            icon: '🎓' },
+  { min: 3500,   name: 'Bibliothèque ambulante',  icon: '📖' },
+  { min: 6000,   name: 'Sage du village',         icon: '🧙' },
+  { min: 10000,  name: 'Oracle local',            icon: '🔮' },
+  { min: 25000,  name: 'Encyclopédie vivante',    icon: '🏛️' },
+  { min: 60000,  name: 'Esprit du réseau',        icon: '🌐' },
+  { min: 150000, name: 'Grand Archiviste',        icon: '📜' },
+  { min: 400000, name: 'Légende locale',          icon: '👑' }
 ];
 
 const SEED_CORPUS = [
@@ -47,6 +51,11 @@ const SEED_CORPUS = [
 ];
 
 class Brain {
+  // Capacité de la mémoire à long terme (« grossir sa taille d'espace ») :
+  // 4 000 souvenirs ≈ 600 Ko de texte, très loin des limites de stockage —
+  // cinq fois plus de faits conservés qu'avant la v1.0.
+  static MEMORY_CAP = 4000;
+
   constructor() {
     // bigrams["mot1 mot2"] = { motSuivant: poids, ... }
     // unigrams["mot"] = { motSuivant: poids, ... }
@@ -93,7 +102,12 @@ class Brain {
     const total = sentence.replace(/\s/g, '').length;
     if (total === 0) return true;
     if (letters / total < 0.6) return true; // trop de chiffres/symboles
-    if ((sentence.match(/\d{3,}/g) || []).length >= 3) return true; // plusieurs codes/nombres
+    // Seuil à 5 : une phrase démographique normale contient légitimement
+    // 3 nombres (« En 2022, la commune comptait 156 habitants, contre 172
+    // en 2016 ») — la rejeter faisait rater les réponses de population.
+    // Les vraies listes de codes en contiennent bien plus, et sont de toute
+    // façon rattrapées par les deux autres règles.
+    if ((sentence.match(/\d{3,}/g) || []).length >= 5) return true; // listes de codes/nombres
     if ((sentence.match(/-\s|\bw:/g) || []).length >= 3) return true; // listes à puces wiki
     return false;
   }
@@ -151,7 +165,10 @@ class Brain {
   keywords(text) {
     return this.tokenize(text)
       .filter(t => t.length >= 3 && !/[.!?,;:]/.test(t) && !Brain.STOPWORDS.has(t))
-      .map(t => this.foldAccents(t));
+      .map(t => this.foldAccents(t))
+      // Singulier/pluriel unifiés (habitants → habitant, volcans → volcan) :
+      // appliqué des deux côtés (question ET souvenir), donc toujours cohérent.
+      .map(t => t.length > 3 ? t.replace(/[sx]$/, '') : t);
   }
 
   /** Un message qui parle de l'utilisateur lui-même plutôt que de demander une info. */
@@ -164,59 +181,87 @@ class Brain {
     if (clean.length < 40 || clean.length > 320) return;
     if (this.memory.some(m => m.text === clean)) return;
     this.memory.push({ text: clean, source });
-    if (this.memory.length > 800) this.memory.shift();
+    if (this.memory.length > Brain.MEMORY_CAP) this.memory.shift();
     this._memoryVocabDirty = true;
   }
 
   /**
-   * Vocabulaire de tous les mots-clés présents dans les souvenirs, mis en
-   * cache et recalculé seulement quand la mémoire change. Sert à repérer
-   * qu'un mot précis de la question (ex. un nom de lieu rare) n'a jamais été
-   * appris nulle part — voir recall().
+   * Mots banals qu'une question contient souvent sans qu'ils soient LE
+   * sujet (« le nombre d'habitants de X » : le sujet, c'est X). Ils peuvent
+   * affiner le score d'un souvenir mais ne déclenchent jamais le garde-fou
+   * « sujet jamais appris » et ne sont jamais exigés dans le souvenir.
+   * Formes avec ET sans pluriel-stemming, par prudence.
    */
-  memoryKeywordVocab() {
-    if (!this._memoryVocab || this._memoryVocabDirty) {
-      this._memoryVocab = new Set();
-      for (const m of this.memory) {
-        for (const k of this.keywords(m.text)) this._memoryVocab.add(k);
-      }
-      this._memoryVocabDirty = false;
-    }
-    return this._memoryVocab;
+  static GENERIC_HINTS = new Set((
+    'nombre habitant habitants population ville village commune pays pay capitale region departement ' +
+    'taille hauteur superficie distance monde histoire personne personnes gens gen chose choses truc ' +
+    'exemple definition signification sens sen date annee jour heure nom prenom couleur langue origine'
+  ).split(' '));
+
+  /** Mots-clés d'un souvenir : son texte + sa source (une phrase issue de
+   *  l'article « Thélod » parle de Thélod même sans répéter le nom). */
+  memoryEntryKeywords(m) {
+    return new Set(this.keywords(m.text + ' ' + (m.source && m.source !== 'toi' ? m.source : '')));
   }
 
   /**
-   * Retrouve le fait le plus pertinent pour une requête.
+   * Fréquence documentaire de chaque mot-clé sur l'ensemble des souvenirs
+   * (dans combien de souvenirs il apparaît, source comprise), mise en cache
+   * et recalculée seulement quand la mémoire change. Sert à distinguer les
+   * mots banals des mots distinctifs — voir recall().
+   */
+  memoryKeywordDf() {
+    if (!this._memoryDf || this._memoryVocabDirty) {
+      this._memoryDf = new Map();
+      for (const m of this.memory) {
+        for (const k of this.memoryEntryKeywords(m)) {
+          this._memoryDf.set(k, (this._memoryDf.get(k) || 0) + 1);
+        }
+      }
+      this._memoryVocabDirty = false;
+    }
+    return this._memoryDf;
+  }
+
+  /**
+   * Retrouve le fait le plus pertinent pour une requête, en séparant les
+   * mots-clés en deux familles grâce à leur fréquence dans la mémoire :
    *
-   * Avec plusieurs centaines de souvenirs accumulés, un simple ratio de
-   * mots-clés partagés finit statistiquement par trouver une coïncidence :
-   * un mot générique comme « nombre » apparaît dans des dizaines de phrases
-   * factuelles sans rapport, et sur 800 souvenirs, l'un d'eux finit par
-   * matcher 2 mots-clés par pur hasard (c'est ce qui a fait citer « Pays
-   * d'élection » pour une question sur les habitants d'un village).
+   *  - DISTINCTIFS (rares, 5 lettres ou plus — un nom de village, un terme
+   *    précis) : c'est LE sujet de la question. Un souvenir candidat doit
+   *    tous les contenir. S'ils n'ont jamais été appris nulle part, le sujet
+   *    est inconnu → aucune citation, quelles que soient les coïncidences.
+   *  - GÉNÉRIQUES (« nombre », « habitant » — présents dans plein de
+   *    souvenirs) : ils affinent le score mais ne suffisent jamais à eux
+   *    seuls. Exiger leur présence faisait échouer des rappels légitimes
+   *    (l'article sur un village contient « 220 habitants » mais pas le mot
+   *    « nombre ») ; les compter comme sujet faisait citer n'importe quoi.
    *
-   * Garde-fou décisif : si la requête contient un mot précis et distinctif
-   * (5 lettres ou plus — souvent un nom propre ou un sujet spécifique) qui
-   * n'apparaît DANS AUCUN souvenir, le sujet n'a tout simplement jamais été
-   * appris — on ne cite jamais rien dans ce cas, quels que soient les autres
-   * mots génériques qui coïncident.
+   * Bonus : si la question demande une quantité (combien, nombre,
+   * population…), les souvenirs contenant un chiffre sont favorisés.
    */
   recall(query, minRatio = 0.7) {
     const qk = [...new Set(this.keywords(query))];
     if (!qk.length) return null;
 
-    const learnedWords = this.memoryKeywordVocab();
-    const hasUnknownDistinctiveWord = qk.some(k => k.length >= 5 && !learnedWords.has(k));
-    if (hasUnknownDistinctiveWord) return null;
+    const df = this.memoryKeywordDf();
+    const distinctive = qk.filter(k =>
+      k.length >= 5 && !Brain.GENERIC_HINTS.has(k) && (df.get(k) || 0) <= 5
+    );
+    if (distinctive.some(k => !(df.get(k) || 0))) return null; // sujet jamais appris
 
-    // Pour 1 ou 2 mots-clés, il faut tous les retrouver ; au-delà, une bonne
-    // majorité suffit. (Le seuil ne doit jamais dépasser qk.length, sinon
-    // aucune requête courte ne peut plus jamais matcher quoi que ce soit.)
+    const wantsNumber = /\b(combien|nombre|population|habitant|quantite|taille|hauteur|superficie|distance|annee|age)\b/
+      .test(this.keywords(query).join(' '));
+
+    // Sans mot distinctif, on retombe sur l'exigence de majorité stricte.
     const needAtLeast = qk.length <= 2 ? qk.length : Math.max(2, Math.ceil(qk.length * 0.6));
+
     let best = null;
     let bestScore = 0;
     for (const m of this.memory) {
-      const mk = new Set(this.keywords(m.text));
+      const mk = this.memoryEntryKeywords(m);
+      if (distinctive.length && !distinctive.every(k => mk.has(k))) continue;
+
       let matched = 0;
       let score = 0;
       for (const k of qk) {
@@ -225,8 +270,11 @@ class Brain {
           score += Math.min(3, Math.max(1, k.length - 3));
         }
       }
-      if (matched < needAtLeast) continue;
-      if (matched / qk.length < minRatio) continue;
+      if (!distinctive.length) {
+        if (matched < needAtLeast) continue;
+        if (matched / qk.length < minRatio) continue;
+      }
+      if (wantsNumber && /\d/.test(m.text)) score += 4;
       if (score > bestScore) { bestScore = score; best = m; }
     }
     return best;
@@ -317,6 +365,100 @@ class Brain {
       /^(qui|que|quoi|comment|pourquoi|quand|combien|qu'est|qu’est|est-ce|c'est qui|c’est qui|c'est quoi|c’est quoi|parle-moi|raconte|explique|dis-moi)/i.test(text.trim());
   }
 
+  // ---------- Outils exacts (calcul, date/heure) ----------
+
+  /**
+   * Évalue une expression arithmétique sans eval() : analyse descendante
+   * classique (+ - * / % ^, parenthèses, décimales avec virgule française).
+   * Contrairement au reste du modèle, ici la réponse est EXACTE — c'est un
+   * outil déterministe, comme la calculatrice des grands assistants.
+   */
+  evalMath(expr) {
+    const s = expr.replace(/\s+/g, '');
+    let i = 0;
+    const parseExpr = () => {
+      let v = parseTerm();
+      while (s[i] === '+' || s[i] === '-') {
+        const op = s[i++];
+        const r = parseTerm();
+        v = op === '+' ? v + r : v - r;
+      }
+      return v;
+    };
+    const parseTerm = () => {
+      let v = parseFactor();
+      while (s[i] === '*' || s[i] === '/' || s[i] === '%') {
+        const op = s[i++];
+        const r = parseFactor();
+        if (op === '*') v *= r;
+        else if (op === '/') { if (r === 0) throw new Error('division par zéro'); v /= r; }
+        else v %= r;
+      }
+      return v;
+    };
+    const parseFactor = () => {
+      const v = parseUnary();
+      if (s[i] === '^') { i++; return Math.pow(v, parseFactor()); }
+      return v;
+    };
+    const parseUnary = () => {
+      if (s[i] === '-') { i++; return -parseUnary(); }
+      if (s[i] === '(') {
+        i++;
+        const v = parseExpr();
+        if (s[i] !== ')') throw new Error('parenthèse non fermée');
+        i++;
+        return v;
+      }
+      const m = /^\d+(\.\d+)?/.exec(s.slice(i));
+      if (!m) throw new Error('nombre attendu');
+      i += m[0].length;
+      return parseFloat(m[0]);
+    };
+    const v = parseExpr();
+    if (i !== s.length) throw new Error('expression incomplète');
+    return v;
+  }
+
+  /** Repère une demande de calcul dans le message et y répond exactement. */
+  mathAnswer(text) {
+    const normalized = text
+      .toLowerCase()
+      .replace(/(\d),(\d)/g, '$1.$2')  // virgule décimale française
+      .replace(/[x×]/g, '*')
+      .replace(/÷/g, '/')
+      .replace(/\bplus\b/g, '+').replace(/\bmoins\b/g, '-')
+      .replace(/\bfois\b/g, '*').replace(/\bdivisé par\b|\bdivise par\b/g, '/');
+    const m = normalized.match(/[-(]*\d[\d\s.()+\-*/^%]*\d|\d/);
+    if (!m) return null;
+    const candidate = m[0].trim();
+    if (!/[+\-*/^%]/.test(candidate) || !/\d.*[+\-*/^%].*\d/.test(candidate)) return null;
+    try {
+      const result = this.evalMath(candidate);
+      if (!Number.isFinite(result)) return null;
+      const pretty = Math.abs(result - Math.round(result)) < 1e-9
+        ? String(Math.round(result))
+        : String(Math.round(result * 1e6) / 1e6);
+      return `${candidate.replace(/\*/g, ' × ').replace(/\//g, ' ÷ ').replace(/\s+/g, ' ').trim()} = ${pretty.replace('.', ',')}`;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /** Répond aux questions de date et d'heure avec l'horloge du PC. */
+  dateTimeAnswer(text) {
+    const t = this.foldAccents(text.toLowerCase());
+    const now = new Date();
+    if (/(quelle heure|l'heure qu'il est|heure est-il|heure il est)/.test(t)) {
+      return `Il est ${now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}.`;
+    }
+    if (/(quel jour (sommes-nous|on est|est-on)|on est quel jour|quelle (est la )?date|on est le combien|date d'aujourd'hui)/.test(t)) {
+      const d = now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      return `Nous sommes le ${d}.`;
+    }
+    return null;
+  }
+
   // ---------- Petites conversations (salutations, politesse) ----------
 
   smalltalk(text) {
@@ -390,6 +532,13 @@ class Brain {
    */
   reply(userText) {
     this.lastUnknown = false;
+
+    // Outils exacts d'abord : un calcul ou une question d'heure a UNE bonne
+    // réponse, autant la donner avec certitude.
+    const dt = this.dateTimeAnswer(userText);
+    if (dt) return dt;
+    const math = this.mathAnswer(userText);
+    if (math) return math;
 
     const small = this.smalltalk(userText);
     if (small) {
@@ -517,7 +666,7 @@ class Brain {
         known.add(m.text);
       }
     }
-    while (this.memory.length > 800) this.memory.shift();
+    while (this.memory.length > Brain.MEMORY_CAP) this.memory.shift();
     this._memoryVocabDirty = true;
 
     const s = data.stats || {};

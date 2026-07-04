@@ -15,7 +15,7 @@
         <div class="logo">
           <span class="logo-dot"></span>
           <span class="logo-text">AI Local</span>
-          <span class="version-badge">v1.0</span>
+          <span class="version-badge">v1.2</span>
         </div>
       </div>
 
@@ -59,6 +59,32 @@
             <div class="confidence-bar"><div id="confidence-fill" class="confidence-fill"></div></div>
           </div>
         </div>
+      </div>
+
+      <div class="sidebar-section share-section" id="llm-section">
+        <h3>Cerveau LLM local</h3>
+        <p id="llm-status" class="share-status">Vérification…</p>
+        <div class="share-token-row">
+          <select id="llm-model-select" class="llm-select"></select>
+        </div>
+        <div class="share-token-row" id="llm-custom-row" hidden>
+          <input id="llm-custom-url" type="text" placeholder="URL directe d'un fichier .gguf (https)">
+        </div>
+        <div class="share-token-row">
+          <button id="llm-action" class="llm-action">Télécharger</button>
+          <button id="llm-cancel" class="llm-action" hidden>✕</button>
+        </div>
+        <div class="confidence-bar" id="llm-progress-bar" hidden><div id="llm-progress-fill" class="confidence-fill"></div></div>
+        <details class="share-details">
+          <summary>C'est quoi ?</summary>
+          <p class="share-status">Un vrai modèle de langage open source (Qwen 2.5,
+          licence Apache 2.0) qui tourne <strong>100 % sur ton PC</strong> via
+          llama.cpp — aucune donnée envoyée dans le cloud, ça marche hors ligne
+          une fois téléchargé. La mémoire auto-apprise de l'app lui sert de base
+          de connaissances : les faits appris pendant tes entraînements sont
+          fournis au LLM qui les cite (principe du RAG). Sans LLM téléchargé,
+          l'app fonctionne exactement comme avant.</p>
+        </details>
       </div>
 
       <div class="sidebar-section share-section">
@@ -229,6 +255,7 @@
   <script src="vision.js"></script>
   <script src="trainer.js"></script>
   <script src="shared.js"></script>
+  <script src="prompting.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

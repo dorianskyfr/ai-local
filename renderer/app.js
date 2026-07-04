@@ -204,6 +204,7 @@ function createConversation() {
   conversations.unshift(conv);
   while (conversations.length > MAX_CONVERSATIONS) conversations.pop();
   currentConvId = conv.id;
+  if (window.llm) window.llm.resetChat(); // le LLM repart d'une session vierge
   return conv;
 }
 
@@ -213,6 +214,7 @@ function currentConv() {
 
 function switchConversation(id) {
   currentConvId = id;
+  if (window.llm) window.llm.resetChat(); // l'historique LLM ne suit pas entre conversations
   saveConversations();
   renderConversationList();
   renderMessages();
@@ -508,6 +510,18 @@ function handleSend() {
 
   const delay = 300 + Math.random() * 500;
   setTimeout(async () => {
+    // Outils exacts d'abord : calcul et date/heure ont UNE bonne réponse,
+    // déterministe — mieux qu'un LLM pour ça.
+    const exact = brain.dateTimeAnswer(text) || brain.mathAnswer(text);
+    if (exact) { finishWith(exact); return; }
+
+    // LLM local actif : réponse générée sur la machine, nourrie par la
+    // mémoire de faits auto-apprise (RAG). Sinon, pipeline v1.1 intact.
+    if (llmState.ready && window.llm) {
+      await answerWithLlm(text, typing, finishWith);
+      return;
+    }
+
     const answer = brain.reply(text);
 
     // Question inconnue → recherche prioritaire sur toutes les sources en
@@ -537,6 +551,56 @@ function handleSend() {
     }
     finishWith(answer);
   }, delay);
+}
+
+/**
+ * Réponse par le LLM local : les faits pertinents de la mémoire auto-apprise
+ * sont injectés dans le prompt (RAG) et la réponse est générée en streaming,
+ * 100 % sur la machine. Si le sujet est inconnu de la mémoire, la recherche
+ * web instantanée alimente d'abord la mémoire, comme avant. En cas d'échec
+ * du LLM, repli complet sur le moteur de faits v1.1.
+ */
+async function answerWithLlm(text, typing, finishWith) {
+  const personal = brain.looksPersonal(text) && !brain.isQuestion(text);
+  brain.learn(text, 1, personal ? 'toi' : null);
+
+  let facts = brain.recallTop(text, 4, { context: true });
+
+  if (!facts.length && brain.isQuestion(text)) {
+    const query = brain.keywords(text).join(' ');
+    if (query) {
+      typing.querySelector('.bubble').insertAdjacentHTML('beforeend',
+        '<span class="searching-note">🔎 je cherche sur internet…</span>');
+      try {
+        const { results } = await Trainer.fetchBatch(Trainer.resolveSources('all', query), query, { fullText: true });
+        for (const r of results) brain.learn(r.extract, 1, r.title);
+        facts = brain.recallTop(text, 4, { context: true });
+      } catch (e) { /* hors ligne : le LLM répondra avec ses propres connaissances */ }
+    }
+  }
+
+  const prompt = Prompting.userPrompt(text, facts.map(f => ({ text: f.m.text, source: f.m.source })));
+
+  typing.remove();
+  const bubble = makeMessage('ai');
+  llmChunkTarget = bubble;
+  const res = await window.llm.generate(prompt);
+  llmChunkTarget = null;
+
+  const answer = res.ok ? String(res.text || bubble.textContent).trim() : '';
+  if (!answer) {
+    // LLM indisponible ou vide : le moteur de faits reprend la main.
+    bubble.parentElement.remove();
+    finishWith(brain.reply(text));
+    return;
+  }
+  bubble.textContent = answer;
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  pushMessage({ role: 'ai', kind: 'text', text: answer });
+  brain.save();
+  updateStats();
+  sendBtn.disabled = false;
+  inputEl.focus();
 }
 
 composerEl.addEventListener('submit', (e) => {
@@ -1008,8 +1072,142 @@ discordSaveBtn.addEventListener('click', () => {
   }
 });
 
+/* ---------- LLM local (panneau latéral) ---------- */
+
+const llmStatusEl = document.getElementById('llm-status');
+const llmSelectEl = document.getElementById('llm-model-select');
+const llmCustomRow = document.getElementById('llm-custom-row');
+const llmCustomUrlEl = document.getElementById('llm-custom-url');
+const llmActionBtn = document.getElementById('llm-action');
+const llmCancelBtn = document.getElementById('llm-cancel');
+const llmProgressBar = document.getElementById('llm-progress-bar');
+const llmProgressFill = document.getElementById('llm-progress-fill');
+
+let llmState = { models: [], ready: false, current: null, loading: false, customDownloaded: false };
+let llmBusy = false;        // téléchargement/chargement lancé depuis l'UI
+let llmChunkTarget = null;  // bulle remplie en direct pendant la génération
+
+function llmPrettySize(mo) {
+  return mo >= 1000 ? (mo / 1000).toFixed(1).replace('.', ',') + ' Go' : mo + ' Mo';
+}
+
+function refreshLlmPanel() {
+  if (!window.llm) {
+    llmStatusEl.textContent = 'Indisponible dans cette version.';
+    llmActionBtn.disabled = true;
+    return;
+  }
+  if (!llmSelectEl.options.length && llmState.models.length) {
+    for (const m of llmState.models) {
+      const opt = document.createElement('option');
+      opt.value = m.id;
+      opt.textContent = m.label;
+      llmSelectEl.appendChild(opt);
+    }
+    const custom = document.createElement('option');
+    custom.value = 'custom';
+    custom.textContent = 'URL personnalisée (.gguf)…';
+    llmSelectEl.appendChild(custom);
+    const preferred = llmState.current || (llmState.models.find(m => m.downloaded) || {}).id;
+    llmSelectEl.value = preferred || 'qwen2.5-1.5b';
+    if (llmState.customUrl) llmCustomUrlEl.value = llmState.customUrl;
+  }
+  const id = llmSelectEl.value;
+  llmCustomRow.hidden = id !== 'custom';
+  const sel = llmState.models.find(m => m.id === id);
+  const downloaded = id === 'custom' ? llmState.customDownloaded : !!(sel && sel.downloaded);
+
+  if (llmState.ready && llmState.current === id) {
+    llmStatusEl.innerHTML = '✓ <span class="llm-ready">LLM actif</span> — réponses générées 100 % en local, faits appris cités.';
+    llmActionBtn.textContent = 'Désactiver';
+  } else if (llmState.loading) {
+    llmStatusEl.textContent = '⏳ Chargement du modèle en mémoire…';
+    llmActionBtn.textContent = 'Patiente…';
+  } else if (llmBusy) {
+    llmActionBtn.textContent = 'Téléchargement…';
+  } else if (downloaded) {
+    llmStatusEl.textContent = 'Modèle téléchargé — active-le pour des réponses générées.';
+    llmActionBtn.textContent = 'Activer';
+  } else {
+    llmStatusEl.textContent = 'Aucun LLM actif — réponses par la mémoire de faits, comme avant.';
+    llmActionBtn.textContent = sel ? `Télécharger (${llmPrettySize(sel.approxMo)})` : 'Télécharger';
+  }
+  if (llmState.error && !llmState.ready && !llmBusy && !llmState.loading) {
+    llmStatusEl.textContent = '⚠ ' + llmState.error;
+  }
+  llmActionBtn.disabled = llmBusy || llmState.loading;
+}
+
+if (window.llm) {
+  window.llm.onProgress((p) => {
+    if (p.total) {
+      llmProgressFill.style.width = Math.min(100, Math.round(p.received / p.total * 100)) + '%';
+    }
+    llmStatusEl.textContent = `⬇ ${(p.received / 1048576).toFixed(0)} / ${p.total ? (p.total / 1048576).toFixed(0) : '?'} Mo`;
+  });
+
+  window.llm.onChunk((chunk) => {
+    if (llmChunkTarget) {
+      llmChunkTarget.textContent += chunk;
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+  });
+
+  window.llm.onStatus((s) => {
+    llmState = Object.assign({}, llmState, s);
+    refreshLlmPanel();
+  });
+
+  window.llm.status().then((s) => {
+    llmState = Object.assign({}, llmState, s);
+    refreshLlmPanel();
+  });
+
+  llmSelectEl.addEventListener('change', refreshLlmPanel);
+  llmCancelBtn.addEventListener('click', () => window.llm.cancelDownload());
+
+  llmActionBtn.addEventListener('click', async () => {
+    const id = llmSelectEl.value;
+    const url = id === 'custom' ? llmCustomUrlEl.value.trim() : undefined;
+    if (id === 'custom' && !llmState.customDownloaded && !/^https:\/\/.+\.gguf/i.test(url || '')) {
+      llmStatusEl.textContent = '⚠ Colle l\'URL https directe d\'un fichier .gguf.';
+      return;
+    }
+
+    // Modèle actif → désactivation.
+    if (llmState.ready && llmState.current === id) {
+      await window.llm.unload();
+      llmState = Object.assign({}, llmState, await window.llm.status());
+      refreshLlmPanel();
+      return;
+    }
+
+    const sel = llmState.models.find(m => m.id === id);
+    const downloaded = id === 'custom' ? llmState.customDownloaded : !!(sel && sel.downloaded);
+    llmBusy = true;
+    refreshLlmPanel();
+    try {
+      if (!downloaded) {
+        llmProgressBar.hidden = false;
+        llmCancelBtn.hidden = false;
+        llmProgressFill.style.width = '0%';
+        const res = await window.llm.download(id, url);
+        llmProgressBar.hidden = true;
+        llmCancelBtn.hidden = true;
+        if (!res.ok) return; // l'erreur arrive via onStatus
+      }
+      await window.llm.load(id, url);
+    } finally {
+      llmBusy = false;
+      llmState = Object.assign({}, llmState, await window.llm.status());
+      refreshLlmPanel();
+    }
+  });
+}
+
 /* ---------- Démarrage ---------- */
 
+refreshLlmPanel();
 loadConversations();
 loadGallery();
 renderConversationList();

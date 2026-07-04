@@ -1,7 +1,7 @@
 {
   "name": "ai-local",
   "productName": "AI Local",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Application de chat avec un modèle d'IA local qui s'entraîne tout seul (texte, images, vidéos)",
   "main": "main.js",
   "author": "dorianskyfr",
@@ -23,13 +23,30 @@
     "files": [
       "main.js",
       "preload.js",
+      "llm-main.js",
       "renderer/**/*",
-      "package.json"
+      "package.json",
+      "!**/node_modules/@node-llama-cpp/*cuda*/**",
+      "!**/node_modules/@node-llama-cpp/*vulkan*/**"
+    ],
+    "asarUnpack": [
+      "**/node_modules/node-llama-cpp/**",
+      "**/node_modules/@node-llama-cpp/**"
     ],
     "win": {
       "target": [
-        { "target": "portable", "arch": ["x64"] },
-        { "target": "nsis", "arch": ["x64"] }
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ]
     },
     "nsis": {
@@ -40,5 +57,8 @@
     "portable": {
       "artifactName": "AI-Local-${version}-portable.exe"
     }
+  },
+  "dependencies": {
+    "node-llama-cpp": "^3.19.0"
   }
 }

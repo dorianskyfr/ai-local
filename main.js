@@ -2,8 +2,11 @@ const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
+const { registerLlmIpc, autoLoad } = require('./llm-main');
 
 const REPO = 'dorianskyfr/ai-local';
+
+registerLlmIpc();
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -248,6 +251,8 @@ async function checkForUpdates(win) {
 app.whenReady().then(() => {
   const win = createWindow();
   if (app.isPackaged) checkForUpdates(win);
+  // Recharge le LLM local utilisé la dernière fois (non bloquant).
+  win.webContents.once('did-finish-load', () => { autoLoad(win); });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

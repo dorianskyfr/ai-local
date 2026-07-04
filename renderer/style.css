@@ -428,3 +428,33 @@ body {
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* ---------- Panneau LLM local ---------- */
+
+.llm-select {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 8px;
+  font-size: 12px;
+}
+.llm-select:focus { border-color: var(--accent); outline: none; }
+
+.llm-action {
+  flex: 1;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.llm-action:hover:not(:disabled) { border-color: var(--accent); }
+.llm-action:disabled { opacity: 0.5; cursor: default; }
+#llm-cancel { flex: 0 0 auto; }
+
+.llm-ready { color: var(--green); }

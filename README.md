@@ -1,12 +1,26 @@
-# AI Local — v1.1
+# AI Local — v1.2
 
 Application de bureau (Windows `.exe`) avec une interface de chat façon ChatGPT / Claude,
 embarquant un **modèle d'IA local qui s'entraîne tout seul** — sur du texte via internet
 (y compris une recherche libre sur tout le web), et sur la génération d'images et de vidéos.
+Depuis la v1.2, elle peut aussi faire tourner un **vrai LLM 100 % local** (llama.cpp),
+nourri par la mémoire auto-apprise (RAG).
 
-![version](https://img.shields.io/badge/version-1.1.0-orange)
+![version](https://img.shields.io/badge/version-1.2.0-orange)
 
 ## ✨ Fonctionnalités
+
+### 🚀 Cerveau LLM local (optionnel, v1.2)
+- **Un vrai modèle de langage sur ton PC** : Qwen 2.5 (0,5 / 1,5 / 7 milliards de
+  paramètres, licence Apache 2.0) exécuté via llama.cpp, entièrement en local —
+  aucune donnée envoyée dans le cloud, fonctionne hors ligne une fois téléchargé.
+- **Nourri par la mémoire auto-apprise (RAG)** : les faits appris pendant tes
+  entraînements sont injectés dans le prompt ; le LLM s'appuie dessus en priorité
+  et cite ses sources. Le modèle auto-appris devient sa base de connaissances.
+- **Téléchargement intégré** (barre de progression, annulation), choix du modèle
+  selon la puissance du PC, URL `.gguf` personnalisée pour les utilisateurs
+  avancés, rechargement automatique au démarrage, réponse en streaming.
+- **Sans LLM, rien ne change** : l'app fonctionne exactement comme avant.
 
 ### 💬 Chat (vue par défaut)
 - Interface moderne : thème sombre, bulles, indicateur de frappe, **réponses en
@@ -105,6 +119,9 @@ Les `.exe` sont compilés automatiquement par GitHub Actions (workflow **Build W
 
 ## 📝 Notes de version
 
+- [v1.2.0](docs/releases/v1.2.0.md) — vrai LLM 100 % local en option (llama.cpp,
+  Qwen 2.5), nourri par la mémoire auto-apprise (RAG), téléchargement intégré,
+  streaming, repli complet sur le moteur de faits.
 - [v1.1.0](docs/releases/v1.1.0.md) — moteur de rappel repensé (pondération par
   rareté, index inversé, réponses multi-faits), questions de suivi, tolérance
   aux fautes de frappe, mémoire ×3, pourcentages dans la calculatrice.
@@ -146,6 +163,11 @@ npm run dist:win   # compile les .exe (sous Windows)
 
 ## 🧠 Comment le modèle apprend
 
+- **LLM local** (`llm-main.js`) : un modèle de langage ouvert au format GGUF,
+  exécuté par llama.cpp (node-llama-cpp) dans le processus principal, CPU
+  uniquement. Les faits pertinents retrouvés dans la mémoire auto-apprise sont
+  injectés dans chaque prompt (`renderer/prompting.js`) — le principe du RAG.
+  Optionnel : sans modèle téléchargé, tout ce qui suit répond seul, comme avant.
 - **Texte** (`renderer/brain.js`) : chaîne de Markov d'ordre 2 (repli d'ordre 1).
   Il compte les transitions `(mot1, mot2) → mot3` et génère mot à mot en interne
   pendant l'auto-entraînement (calibrage du vocabulaire), mais **la génération n'est
@@ -176,11 +198,13 @@ npm run dist:win   # compile les .exe (sous Windows)
 
 ```
 main.js                  # processus principal Electron
+llm-main.js              # LLM local (llama.cpp) : téléchargement, chargement, génération
 preload.js
 renderer/
   index.html             # interface : onglets Chat / S'entraîner
   style.css
   app.js                 # logique UI, chat multimodal, centre d'entraînement
+  prompting.js           # assemblage des prompts LLM (faits appris → RAG)
   brain.js               # modèle de langage local auto-apprenant
   vision.js              # génération d'images/vidéos auto-apprenante
   trainer.js             # accès internet multi-sources

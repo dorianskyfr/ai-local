@@ -1,4 +1,4 @@
-# AI Local — v1.2
+# AI Local — v1.5
 
 Application de bureau (Windows `.exe`) avec une interface de chat façon ChatGPT / Claude,
 embarquant un **modèle d'IA local qui s'entraîne tout seul** — sur du texte via internet
@@ -6,7 +6,7 @@ embarquant un **modèle d'IA local qui s'entraîne tout seul** — sur du texte 
 Depuis la v1.2, elle peut aussi faire tourner un **vrai LLM 100 % local** (llama.cpp),
 nourri par la mémoire auto-apprise (RAG).
 
-![version](https://img.shields.io/badge/version-1.2.0-orange)
+![version](https://img.shields.io/badge/version-1.5.0-orange)
 
 ## ✨ Fonctionnalités
 
@@ -119,6 +119,10 @@ Les `.exe` sont compilés automatiquement par GitHub Actions (workflow **Build W
 
 ## 📝 Notes de version
 
+- [v1.5.0](docs/releases/v1.5.0.md) — version finale : audit complet du code,
+  corrections de tous les bugs trouvés (réentrance, fuites de contexte entre
+  conversations, versions figées, téléchargement du grand modèle), 57
+  vérifications automatisées au vert.
 - [v1.2.0](docs/releases/v1.2.0.md) — vrai LLM 100 % local en option (llama.cpp,
   Qwen 2.5), nourri par la mémoire auto-apprise (RAG), téléchargement intégré,
   streaming, repli complet sur le moteur de faits.

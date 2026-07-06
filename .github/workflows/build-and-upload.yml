@@ -1,9 +1,9 @@
-name: Build and Release
+name: Build and Upload to Release
 
 on:
   push:
     tags:
-      - 'v*'
+      - 'v1.6.0'
 
 jobs:
   build-windows:
@@ -28,14 +28,14 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Publish Windows binaries
+    - name: Upload Windows binaries to existing release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ github.ref_name }}
         files: dist/*.exe
-        body_path: RELEASE-v1.6.0.md
         generate_release_notes: false
         make_latest: false
+        overwrite_files: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -65,12 +65,13 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Publish Linux binaries
+    - name: Upload Linux binaries to existing release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ github.ref_name }}
         files: dist/*.AppImage,dist/*.deb
         generate_release_notes: false
         make_latest: false
+        overwrite_files: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

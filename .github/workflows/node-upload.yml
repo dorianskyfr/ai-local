@@ -1,0 +1,108 @@
+name: Node.js Upload to Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.node-trigger'
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Download artifacts
+      uses: dawidd6/action-download-artifact@v3
+      with:
+        workflow: build.yml
+        run_id: 28805672281
+        path: artifacts
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        
+    - name: Install dependencies
+      run: npm install node-fetch@3 form-data@4
+      
+    - name: Upload via Node.js + GitHub API
+      run: |
+        const fs = require('fs');
+        const path = require('path');
+        const fetch = require('node-fetch');
+        const FormData = require('form-data');
+        
+        // Find all binary files
+        const files = [];
+        function findFiles(dir) {
+          const items = fs.readdirSync(dir);
+          for (const item of items) {
+            const fullPath = path.join(dir, item);
+            const stat = fs.statSync(fullPath);
+            if (stat.isDirectory()) {
+              findFiles(fullPath);
+            } else if (item.match(/\.(exe|AppImage|deb)$/i)) {
+              files.push(fullPath);
+            }
+          }
+        }
+        findFiles('artifacts');
+        
+        console.log('Found files:', files);
+        
+        // Get release ID for v1.6.0
+        const releaseResponse = await fetch(
+          'https://api.github.com/repos/dorianskyfr/ai-local/releases/tags/v1.6.0',
+          {
+            headers: {
+              'Authorization': `token ${process.env.GITHUB_TOKEN}`,
+              'User-Agent': 'actions/github-script'
+            }
+          }
+        );
+        const releaseData = await releaseResponse.json();
+        const releaseId = releaseData.id;
+        const uploadUrl = releaseData.upload_url.replace('{?name,label}', '');
+        
+        console.log('Release ID:', releaseId);
+        console.log('Upload URL:', uploadUrl);
+        
+        // Upload each file
+        for (const filePath of files) {
+          const fileName = path.basename(filePath);
+          const fileData = fs.readFileSync(filePath);
+          
+          console.log(`Uploading ${fileName} (${fileData.length} bytes)...`);
+          
+          try {
+            const form = new FormData();
+            form.append('file', fileData, fileName);
+            
+            const uploadResponse = await fetch(
+              `${uploadUrl}?name=${encodeURIComponent(fileName)}`,
+              {
+                method: 'POST',
+                headers: {
+                  'Authorization': `token ${process.env.GITHUB_TOKEN}`,
+                  'User-Agent': 'actions/github-script',
+                  ...form.getHeaders()
+                },
+                body: form
+              }
+            );
+            
+            if (uploadResponse.ok) {
+              const result = await uploadResponse.json();
+              console.log(`✅ Uploaded ${fileName}:`, result.url);
+            } else {
+              const error = await uploadResponse.text();
+              console.error(`❌ Failed to upload ${fileName}:`, uploadResponse.status, error);
+            }
+          } catch (error) {
+            console.error(`❌ Error uploading ${fileName}:`, error.message);
+          }
+        }
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

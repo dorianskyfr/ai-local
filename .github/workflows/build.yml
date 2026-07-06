@@ -106,7 +106,7 @@ jobs:
     - name: List artifacts
       run: find artifacts -type f \( -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" \)
 
-    - name: Upload assets to v1.6.0 release
+    - name: Upload assets to release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: v1.6.0
@@ -115,5 +115,6 @@ jobs:
           artifacts/**/*.AppImage
           artifacts/**/*.deb
         generate_release_notes: false
+        make_latest: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

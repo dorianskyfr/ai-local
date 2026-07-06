@@ -19,7 +19,7 @@ jobs:
           await github.rest.actions.createWorkflowDispatch({
             owner: 'dorianskyfr',
             repo: 'ai-local',
-            workflow_id: 'manual-upload.yml',
+            workflow_id: '308202303',
             ref: 'main'
           });
       env:

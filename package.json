@@ -1,0 +1,84 @@
+{
+  "name": "ai-local",
+  "productName": "AI Local",
+  "version": "1.6.0",
+  "description": "Application de chat avec un modèle d'IA local qui s'entraîne tout seul (texte, images, vidéos) - NOUVEAU : Un seul modèle partagé par TOUS les utilisateurs !",
+  "main": "main.js",
+  "author": "dorianskyfr",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win --x64 --publish never",
+    "dist:linux": "electron-builder --linux --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "fr.dorianskyfr.ailocal",
+    "productName": "AI Local",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "global-model.js",
+      "renderer/**/*",
+      "package.json",
+      "!**/node_modules/**"
+    ],
+    "asarUnpack": [],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false
+    },
+    "portable": {
+      "artifactName": "AI-Local-${version}-portable.exe"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Utility",
+      "maintainer": "dorianskyfr <211799238+dorianskyfr@users.noreply.github.com>",
+      "synopsis": "Chat IA 100 % local avec modèle unique partagé - v1.6"
+    },
+    "appImage": {
+      "artifactName": "AI-Local-${version}.AppImage"
+    },
+    "deb": {
+      "artifactName": "ai-local_${version}_amd64.deb"
+    }
+  },
+  "dependencies": {}
+}

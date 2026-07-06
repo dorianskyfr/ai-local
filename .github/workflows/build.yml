@@ -23,13 +23,11 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-        ref: ${{ github.event.inputs.tag || github.ref_name }}
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '24'
-        cache: 'npm'
 
     - name: Install dependencies
       run: npm install
@@ -64,13 +62,11 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-        ref: ${{ github.event.inputs.tag || github.ref_name }}
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '24'
-        cache: 'npm'
 
     - name: Install dependencies
       run: npm install
@@ -108,12 +104,12 @@ jobs:
         path: artifacts
 
     - name: List artifacts
-      run: find artifacts -type f \( -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" \) | head -20
+      run: find artifacts -type f \( -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" \)
 
-    - name: Upload assets to release
+    - name: Upload assets to v1.6.0 release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+        tag_name: v1.6.0
         files: |
           artifacts/**/*.exe
           artifacts/**/*.AppImage

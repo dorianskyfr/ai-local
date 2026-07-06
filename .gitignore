@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Electron cache
+*.log
+*.swp
+.DS_Store
+
+# User data (local storage, etc.)
+userData/
+
+# IDE
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+
+# OS
+*.log
+*.tmp
+*.temp
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Model files (generated)
+models/
+*.gguf
+
+# Local model storage
+shared-model/global-model-v1.6.json

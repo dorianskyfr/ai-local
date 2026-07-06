@@ -28,16 +28,47 @@ jobs:
         done
         ls -la
         
-    - name: Create release with assets
+    - name: Create NEW release with assets
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v1.6.0
-        name: "AI Local v1.6.0"
+        tag_name: v1.6.1
+        name: "AI Local v1.6.1"
+        body: "## 🚀 AI Local v1.6.1 — RÉVOLUTION : Un seul modèle partagé par TOUS les utilisateurs !
+
+**NOUVEAU CONCEPT MONDIAL** : Tous les utilisateurs partagent et améliorent le même modèle global.
+
+### 💥 CHANGEMENT MAJEUR
+- Un seul modèle pour tous (global-model-v1.6.json)
+- Synchronisation automatique au démarrage et toutes les 5 minutes
+- Contributions transparentes et anonymes
+- 100% offline après synchronisation
+
+### 🔧 Améliorations Techniques
+- Markov Order 3 (vs Order 2 précédemment)
+- Mémoire hiérarchique (15 000 entrées)
+- Système de synonymes (12+ groupes)
+- Fonctions mathématiques étendues
+
+### ⚡ Suppressions
+- Qwen/LLM externe supprimé
+- Plus de dépendances externes
+
+### 📦 Fichiers
+| Fichier | Description |
+|---|---|
+| `AI-Local-1.6.1-portable.exe` | Windows portable |
+| `AI Local Setup 1.6.1.exe` | Windows installateur |
+| `AI-Local-1.6.1.AppImage` | Linux AppImage |
+| `ai-local_1.6.1_amd64.deb` | Linux deb package |
+
+> Si tu as une version précédente installée, elle te proposera cette mise à jour automatiquement."
         files: |
           final/*.exe
           final/*.AppImage
           final/*.deb
         generate_release_notes: false
         make_latest: true
+        draft: false
+        prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

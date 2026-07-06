@@ -1,0 +1,137 @@
+name: Direct Upload to v1.6.0 Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.direct-upload-trigger'
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Download artifacts from build run 28805672281
+      uses: dawidd6/action-download-artifact@v3
+      with:
+        workflow: build.yml
+        run_id: 28805672281
+        path: assets
+        
+    - name: List all files
+      run: find assets -type f | head -20
+      
+    - name: Get release ID for v1.6.0
+      id: get-release
+      run: |
+        # Get the release ID for tag v1.6.0
+        RELEASE_DATA=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
+          "https://api.github.com/repos/dorianskyfr/ai-local/releases/tags/v1.6.0")
+        
+        # Extract the ID
+        RELEASE_ID=$(echo "$RELEASE_DATA" | grep -o '"id": *[0-9]*' | head -1 | awk -F': ' '{print $2}' | tr -d ',')
+        
+        echo "Release ID: $RELEASE_ID"
+        echo "RELEASE_ID=$RELEASE_ID" >> $GITHUB_OUTPUT
+        
+        # Also get the upload URL
+        UPLOAD_URL=$(echo "$RELEASE_DATA" | grep -o '"upload_url": *"[^"]*"' | head -1 | sed 's/.*: *"//;s/"//')
+        echo "Upload URL: $UPLOAD_URL"
+        echo "UPLOAD_URL=$UPLOAD_URL" >> $GITHUB_OUTPUT
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Upload Windows portable exe
+      run: |
+        FILE=$(find assets -name "*portable*.exe" | head -1)
+        if [ -n "$FILE" ]; then
+          FILENAME=$(basename "$FILE")
+          echo "Uploading $FILENAME..."
+          
+          # Get the base upload URL (without {?name,label})
+          BASE_URL="${{ steps.get-release.outputs.UPLOAD_URL }}"
+          CLEAN_URL=$(echo "$BASE_URL" | sed 's/{.*//')
+          
+          # Upload the file
+          curl -s -X POST \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary "@$FILE" \
+            "${CLEAN_URL}?name=$FILENAME"
+          
+          echo "Uploaded $FILENAME"
+        else
+          echo "No portable exe found"
+        fi
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Upload Windows nsis exe
+      run: |
+        FILE=$(find assets -name "*Setup*.exe" | head -1)
+        if [ -n "$FILE" ]; then
+          FILENAME=$(basename "$FILE")
+          echo "Uploading $FILENAME..."
+          
+          BASE_URL="${{ steps.get-release.outputs.UPLOAD_URL }}"
+          CLEAN_URL=$(echo "$BASE_URL" | sed 's/{.*//')
+          
+          curl -s -X POST \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary "@$FILE" \
+            "${CLEAN_URL}?name=$FILENAME"
+          
+          echo "Uploaded $FILENAME"
+        else
+          echo "No Setup exe found"
+        fi
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Upload Linux AppImage
+      run: |
+        FILE=$(find assets -name "*.AppImage" | head -1)
+        if [ -n "$FILE" ]; then
+          FILENAME=$(basename "$FILE")
+          echo "Uploading $FILENAME..."
+          
+          BASE_URL="${{ steps.get-release.outputs.UPLOAD_URL }}"
+          CLEAN_URL=$(echo "$BASE_URL" | sed 's/{.*//')
+          
+          curl -s -X POST \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary "@$FILE" \
+            "${CLEAN_URL}?name=$FILENAME"
+          
+          echo "Uploaded $FILENAME"
+        else
+          echo "No AppImage found"
+        fi
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Upload Linux deb
+      run: |
+        FILE=$(find assets -name "*.deb" | head -1)
+        if [ -n "$FILE" ]; then
+          FILENAME=$(basename "$FILE")
+          echo "Uploading $FILENAME..."
+          
+          BASE_URL="${{ steps.get-release.outputs.UPLOAD_URL }}"
+          CLEAN_URL=$(echo "$BASE_URL" | sed 's/{.*//')
+          
+          curl -s -X POST \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary "@$FILE" \
+            "${CLEAN_URL}?name=$FILENAME"
+          
+          echo "Uploaded $FILENAME"
+        else
+          echo "No deb found"
+        fi
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

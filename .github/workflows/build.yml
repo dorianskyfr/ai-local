@@ -1,0 +1,123 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build'
+        required: true
+        default: 'v1.6.0'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        target: [portable, nsis]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        ref: ${{ github.event.inputs.tag || github.ref_name }}
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build Windows (portable)
+      if: matrix.target == 'portable'
+      run: npm run dist:win
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build Windows (installer)
+      if: matrix.target == 'nsis'
+      run: npm run dist:win
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: AI-Local-windows-${{ matrix.target }}
+        path: dist/**
+        retention-days: 7
+
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [AppImage, deb]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        ref: ${{ github.event.inputs.tag || github.ref_name }}
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Install electron-builder dependencies
+      run: sudo apt-get update && sudo apt-get install -y rpm fuse
+
+    - name: Build Linux (AppImage)
+      if: matrix.target == 'AppImage'
+      run: npm run dist:linux
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build Linux (deb)
+      if: matrix.target == 'deb'
+      run: npm run dist:linux
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: AI-Local-linux-${{ matrix.target }}
+        path: dist/**
+        retention-days: 7
+
+  publish-release:
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: List artifacts
+      run: find artifacts -type f \( -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" \) | head -20
+
+    - name: Upload assets to release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+        files: |
+          artifacts/**/*.exe
+          artifacts/**/*.AppImage
+          artifacts/**/*.deb
+        generate_release_notes: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

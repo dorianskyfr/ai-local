@@ -1,0 +1,64 @@
+name: Final Upload to v1.6.0
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.final-upload-trigger'
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Download all artifacts
+      uses: dawidd6/action-download-artifact@v3
+      with:
+        workflow: build.yml
+        run_id: 28805672281
+        path: artifacts
+        
+    - name: Extract exact files
+      run: |
+        mkdir -p final-assets
+        
+        # Extract from each artifact
+        unzip -j artifacts/AI-Local-windows-portable/artifact.zip -d final-assets/ 2>/dev/null || \
+        unzip -j artifacts/AI-Local-windows-portable.zip -d final-assets/ 2>/dev/null || \
+        find artifacts -name "*.exe" -exec cp {} final-assets/ \;
+        
+        unzip -j artifacts/AI-Local-linux-AppImage/artifact.zip -d final-assets/ 2>/dev/null || \
+        unzip -j artifacts/AI-Local-linux-AppImage.zip -d final-assets/ 2>/dev/null || \
+        find artifacts -name "*.AppImage" -exec cp {} final-assets/ \;
+        
+        unzip -j artifacts/AI-Local-linux-deb/artifact.zip -d final-assets/ 2>/dev/null || \
+        unzip -j artifacts/AI-Local-linux-deb.zip -d final-assets/ 2>/dev/null || \
+        find artifacts -name "*.deb" -exec cp {} final-assets/ \;
+        
+        ls -la final-assets/
+        
+    - name: Upload using API
+      run: |
+        # The artifacts are already in a specific structure
+        # Let's find the actual files
+        find artifacts -type f \( -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" \) | while read file; do
+          filename=$(basename "$file")
+          echo "Found: $filename"
+          
+          # Use the GitHub API to upload
+          response=$(curl -s -w "%{http_code}" -X POST \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary "@$file" \
+            "https://uploads.github.com/repos/dorianskyfr/ai-local/releases/349656182/assets?name=$filename")
+          
+          http_code=${response: -3}
+          echo "Upload $filename: HTTP $http_code"
+          
+          if [ "$http_code" != "201" ]; then
+            echo "Response: ${response%???}"
+          fi
+        done
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

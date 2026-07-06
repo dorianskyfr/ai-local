@@ -1,0 +1,43 @@
+name: Release v1.6.0 with Assets
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.release-trigger'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Download artifacts
+      uses: dawidd6/action-download-artifact@v3
+      with:
+        workflow: build.yml
+        run_id: 28805672281
+        path: assets
+        
+    - name: Extract files
+      run: |
+        mkdir -p final
+        cd final
+        for zip in ../assets/*.zip; do
+          unzip -j "$zip" -d . 2>/dev/null || true
+        done
+        ls -la
+        
+    - name: Create release with assets
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: v1.6.0
+        name: "AI Local v1.6.0"
+        files: |
+          final/*.exe
+          final/*.AppImage
+          final/*.deb
+        generate_release_notes: false
+        make_latest: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

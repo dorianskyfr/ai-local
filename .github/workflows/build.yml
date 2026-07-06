@@ -4,19 +4,10 @@ on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Tag to build'
-        required: true
-        default: 'v1.6.0'
 
 jobs:
   build-windows:
     runs-on: windows-latest
-    strategy:
-      matrix:
-        target: [portable, nsis]
     
     steps:
     - name: Checkout code
@@ -27,7 +18,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '24'
+        node-version: '20'
 
     - name: Install dependencies
       run: npm install
@@ -37,11 +28,12 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Publish Windows binaries to release
+    - name: Publish Windows binaries
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ github.ref_name }}
         files: dist/*.exe
+        body_path: RELEASE-v1.6.0.md
         generate_release_notes: false
         make_latest: false
       env:
@@ -50,9 +42,6 @@ jobs:
   build-linux:
     needs: build-windows
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        target: [AppImage, deb]
     
     steps:
     - name: Checkout code
@@ -63,7 +52,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '24'
+        node-version: '20'
 
     - name: Install dependencies
       run: npm install
@@ -76,7 +65,7 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Publish Linux binaries to release
+    - name: Publish Linux binaries
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ github.ref_name }}

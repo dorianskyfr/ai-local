@@ -1,0 +1,30 @@
+name: Manual Upload to v1.6.0
+
+on:
+  workflow_dispatch:
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Download artifacts from build run 28805672281
+      uses: dawidd6/action-download-artifact@v3
+      with:
+        workflow: build.yml
+        run_id: 28805672281
+        path: assets
+        
+    - name: List files
+      run: find assets -type f \( -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" \) -exec ls -la {} \;
+      
+    - name: Upload to v1.6.0
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: v1.6.0
+        files: |
+          assets/**/*.exe
+          assets/**/*.AppImage
+          assets/**/*.deb
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

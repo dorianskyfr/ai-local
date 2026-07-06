@@ -6,7 +6,44 @@ on:
       - 'v1.6.0'
 
 jobs:
-  release:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Build Windows
+      run: npm run dist:win
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Publish Windows binaries
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ github.ref_name }}
+        name: "AI Local v1.6.0"
+        body_path: RELEASE-v1.6.0.md
+        files: dist/*.exe
+        generate_release_notes: false
+        make_latest: false
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-linux:
+    needs: build-windows
     runs-on: ubuntu-latest
     
     steps:
@@ -24,30 +61,18 @@ jobs:
       run: npm install
 
     - name: Install electron-builder dependencies
-      run: sudo apt-get update && sudo apt-get install -y rpm fuse wine64
+      run: sudo apt-get update && sudo apt-get install -y rpm fuse
 
-    - name: Build all binaries
-      run: |
-        npm run dist:win -- --win --x64 --portable || true
-        npm run dist:win -- --win --x64 --nsis || true
-        npm run dist:linux -- --linux --x64 --appImage || true
-        npm run dist:linux -- --linux --x64 --deb || true
+    - name: Build Linux
+      run: npm run dist:linux
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: List built files
-      run: ls -la dist/ || true
-
-    - name: Create or update release
+    - name: Publish Linux binaries
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ github.ref_name }}
-        name: "AI Local v1.6.0"
-        body_file: RELEASE-v1.6.0.md
-        files: |
-          dist/*.exe
-          dist/*.AppImage
-          dist/*.deb
+        files: dist/*.AppImage,dist/*.deb
         generate_release_notes: false
         make_latest: true
         draft: false

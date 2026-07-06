@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Local</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+
+    <!-- Barre latérale -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <span class="logo-dot"></span>
+          <span class="logo-text">AI Local</span>
+          <span class="version-badge">v1.6</span>
+        </div>
+      </div>
+
+      <button id="new-chat-btn" class="new-chat-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Nouvelle conversation
+      </button>
+
+      <div class="sidebar-section conversations-section">
+        <h3>Conversations</h3>
+        <div id="conversation-list" class="conversation-list"></div>
+      </div>
+
+      <div class="sidebar-section stats-section">
+        <h3>Modèle</h3>
+        <div class="milestones" title="Paliers internes et ludiques pour suivre la progression — pas une comparaison avec de vrais modèles d'IA.">
+          <div class="milestone-badge" id="milestone-text">
+            <span class="milestone-icon">🌱</span>
+            <div class="milestone-info">
+              <span class="milestone-label">Texte</span>
+              <span class="milestone-name" id="milestone-text-name">Graine</span>
+            </div>
+          </div>
+          <div class="milestone-badge" id="milestone-image">
+            <span class="milestone-icon">🖍️</span>
+            <div class="milestone-info">
+              <span class="milestone-label">Images</span>
+              <span class="milestone-name" id="milestone-image-name">Gribouillage</span>
+            </div>
+          </div>
+        </div>
+        <p id="scale-note" class="share-status"></p>
+        <div class="stats">
+          <div class="stat-row"><span>Cycles</span><strong id="stat-epochs">0</strong></div>
+          <div class="stat-row"><span>Vocabulaire</span><strong id="stat-vocab">0</strong></div>
+          <div class="stat-row"><span>Souvenirs</span><strong id="stat-memories">0</strong></div>
+          <div class="stat-row"><span>Phrases apprises</span><strong id="stat-sentences">0</strong></div>
+          <div class="stat-row"><span>Générations img.</span><strong id="stat-generations">0</strong></div>
+          <div class="stat-row">
+            <span>Confiance</span>
+            <div class="confidence-bar"><div id="confidence-fill" class="confidence-fill"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- NOUVEAU SYSTÈME v1.6 : Modèle Global Unique -->
+      <div class="sidebar-section share-section">
+        <h3>🌍 Modèle Global v1.6</h3>
+        <p id="share-status" class="share-status">Synchronisation…</p>
+        <p class="share-status">Un seul modèle partagé par TOUS les utilisateurs.
+        Chaque contribution profite à tout le monde !</p>
+        <div id="global-model-stats" class="global-model-stats">
+          <strong>Chargement…</strong>
+        </div>
+        <div class="share-token-row">
+          <button id="global-sync-btn" class="llm-action">Synchroniser maintenant</button>
+        </div>
+        <div id="global-contrib-stats" class="global-contrib-stats">
+          <strong>Contributeurs</strong>
+        </div>
+        <details class="share-details">
+          <summary>C'est quoi ?</summary>
+          <p class="share-status">Depuis la v1.6, AI Local utilise un <strong>modèle unique
+          partagé par tous les utilisateurs</strong>. Quand tu apprends quelque chose à
+          l'IA, cette connaissance est automatiquement partagée avec tout le monde.
+          Plus besoin de jeton GitHub, plus besoin d'attendre : le modèle s'améliore
+          collectivement en temps réel !</p>
+        </details>
+      </div>
+        <p class="share-status share-security-note" title="Un secret capable d'écrire sur GitHub ne peut pas être intégré à un exécutable public : il serait extractible et révoqué par la détection de fuite de GitHub, cassant le partage pour tout le monde. Chacun utilise son propre jeton gratuit (github.com/settings/tokens).">
+        ℹ Pas de jeton unique intégré (raison de sécurité — survole pour les détails) :
+        chacun utilise le sien, gratuit.</p>
+        <details class="share-details">
+          <summary>Comment ça marche ?</summary>
+          <ol>
+            <li><strong>Au démarrage</strong>, l'app télécharge le modèle communautaire
+            (<code>shared-model/model.json</code>) depuis le dépôt GitHub public —
+            aucun compte requis, ça marche pour tout le monde.</li>
+            <li><strong>Fusion</strong> avec ton modèle local : vocabulaires réunis,
+            transitions additionnées, souvenirs dédupliqués. Tu ne perds jamais rien,
+            tu gagnes ce que les autres ont appris.</li>
+            <li><strong>Publication</strong> : toutes les 300 phrases apprises pendant
+            un entraînement, ton modèle fusionné est republié sur GitHub (révision +1)
+            — uniquement si un jeton est configuré.</li>
+            <li><strong>Ne voyagent jamais</strong> : tes conversations, tes souvenirs
+            personnels (« tu m'avais dit… ») et ton jeton restent sur ta machine.</li>
+          </ol>
+        </details>
+      </div>
+
+      <div class="sidebar-section share-section">
+        <h3>Discord</h3>
+        <p id="discord-status" class="share-status">Affiche « S'entraîne sur… » sur ton profil.</p>
+        <div class="share-token-row">
+          <input id="discord-appid" type="text" placeholder="ID d'application Discord">
+          <button id="discord-save" title="Activer la présence Discord">✓</button>
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <p class="footer-note">Le modèle apprend en continu et ne peut pas être réinitialisé.
+        Il se synchronise avec le modèle communautaire sur GitHub (jamais tes conversations).</p>
+      </div>
+    </aside>
+
+    <!-- Zone principale avec onglets -->
+    <main class="chat">
+      <nav class="tabs">
+        <button id="tab-chat" class="tab active">💬 Chat</button>
+        <button id="tab-training" class="tab">
+          🧠 S'entraîner
+          <span id="tab-training-dot" class="tab-dot" hidden></span>
+        </button>
+        <button id="tab-gallery" class="tab">🖼 Galerie</button>
+      </nav>
+
+      <!-- Vue Chat (par défaut) -->
+      <section id="view-chat" class="view">
+        <div id="messages" class="messages"></div>
+
+        <div class="composer-wrap">
+          <form id="composer" class="composer">
+            <textarea id="input" rows="1" placeholder="Écris ton message…" autofocus></textarea>
+            <button type="submit" id="send-btn" class="send-btn" aria-label="Envoyer">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4Z"/></svg>
+            </button>
+          </form>
+          <p class="composer-hint">Entrée pour envoyer · Maj+Entrée pour un saut de ligne</p>
+        </div>
+      </section>
+
+      <!-- Vue Entraînement -->
+      <section id="view-training" class="view" hidden>
+        <div class="training-page">
+          <header class="training-header">
+            <h2>Centre d'entraînement</h2>
+            <p>Lance un entraînement : le modèle étudie des articles sur internet
+            (sujet précis ou sujets aléatoires), ou perfectionne sa génération
+            d'images et de vidéos.</p>
+          </header>
+
+          <div class="training-controls">
+            <div class="control-row">
+              <label for="train-mode">Domaine</label>
+              <select id="train-mode">
+                <option value="text">📚 Texte — apprendre depuis internet</option>
+                <option value="image">🎨 Génération d'images</option>
+                <option value="video">🎬 Génération de vidéos</option>
+              </select>
+            </div>
+            <div class="control-row" id="source-row">
+              <label for="train-source">Sources</label>
+              <select id="train-source">
+                <option value="all">🌐 Toutes les sources (en parallèle)</option>
+                <option value="wikipedia">Wikipédia</option>
+                <option value="vikidia">Vikidia (encyclopédie junior)</option>
+                <option value="wikinews">Wikinews (actualités)</option>
+                <option value="wiktionary">Wiktionnaire (définitions)</option>
+                <option value="wikisource">Wikisource (livres)</option>
+                <option value="wikibooks">Wikibooks (manuels)</option>
+                <option value="wikiversity">Wikiversité (cours)</option>
+                <option value="rss">Actualités (France Info, Le Monde)</option>
+                <option value="web">🔎 Recherche libre sur tout le web (DuckDuckGo)</option>
+              </select>
+            </div>
+            <div class="control-row">
+              <label for="topic-input">Sujet</label>
+              <input id="topic-input" type="text"
+                     placeholder="Sujet, ou un lien (page web, PDF, YouTube, Vimeo…) — vide = n'importe quel sujet">
+            </div>
+            <div class="control-row">
+              <label for="train-speed">Vitesse</label>
+              <select id="train-speed"></select>
+            </div>
+            <div class="control-row" id="custom-cores-row" hidden>
+              <label for="custom-cores">Cœurs</label>
+              <input id="custom-cores" type="range" min="1" max="32" value="4">
+              <span id="custom-cores-val" class="range-val">4</span>
+            </div>
+            <div class="control-row" id="custom-ram-row" hidden>
+              <label for="custom-ram">RAM (Go)</label>
+              <input id="custom-ram" type="range" min="1" max="64" value="8">
+              <span id="custom-ram-val" class="range-val">8 Go</span>
+            </div>
+            <p id="custom-speed-note" class="pc-scan" hidden></p>
+            <p id="pc-scan" class="pc-scan"></p>
+            <button id="train-start" class="train-start">
+              <span class="train-indicator"></span>
+              <span class="train-start-label">Lancer l'entraînement</span>
+            </button>
+          </div>
+
+          <div class="training-live">
+            <div class="training-preview-wrap" id="preview-wrap" hidden>
+              <canvas id="train-preview" width="360" height="240"></canvas>
+              <p class="preview-caption">Aperçu en direct de la génération</p>
+            </div>
+            <div id="train-feed" class="train-feed" aria-live="polite">
+              <p class="feed-empty">Aucun entraînement lancé pour le moment.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Vue Galerie -->
+      <section id="view-gallery" class="view" hidden>
+        <div class="gallery-page">
+          <header class="training-header">
+            <h2>Galerie</h2>
+            <p>Les images générées par le modèle sont conservées ici automatiquement.</p>
+          </header>
+          <div id="gallery-grid" class="gallery-grid">
+            <p class="feed-empty">Aucune image pour le moment — demande « dessine … » dans
+            le chat, ou lance un entraînement d'images.</p>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+  </div>
+
+  <script src="brain.js"></script>
+  <script src="vision.js"></script>
+  <script src="trainer.js"></script>
+  <script src="shared.js"></script>
+  <script src="prompting.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

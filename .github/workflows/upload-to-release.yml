@@ -1,7 +1,9 @@
 name: Upload Assets to v1.6.0 Release
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   upload:

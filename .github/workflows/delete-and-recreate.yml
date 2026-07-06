@@ -28,10 +28,8 @@ jobs:
 
     - name: Build all binaries
       run: |
-        npm run dist:win -- --win --x64 --portable || true
-        npm run dist:win -- --win --x64 --nsis || true
-        npm run dist:linux -- --linux --x64 --appImage || true
-        npm run dist:linux -- --linux --x64 --deb || true
+        npm run dist:win || true
+        npm run dist:linux || true
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

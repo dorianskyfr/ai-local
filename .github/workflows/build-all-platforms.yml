@@ -1,0 +1,141 @@
+name: Build All Platforms v1.6.0
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install deps
+      run: npm install
+
+    - name: Install builder deps
+      run: sudo apt-get update && sudo apt-get install -y rpm fuse
+
+    - name: Build Linux
+      run: npm run dist:linux
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux-binaries
+        path: dist/
+        retention-days: 7
+
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install deps
+      run: npm install
+
+    - name: Build Windows
+      run: npm run dist:win
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-binaries
+        path: dist/
+        retention-days: 7
+
+  create-release:
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        merge-multiple: true
+
+    - name: Create release
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          
+          let body = '';
+          try {
+            body = fs.readFileSync('RELEASE-v1.6.0.md', 'utf8');
+          } catch (e) {
+            body = 'AI Local v1.6.0';
+          }
+          
+          // Delete old release
+          try {
+            const release = await github.rest.repos.getReleaseByTag({
+              owner: 'dorianskyfr',
+              repo: 'ai-local',
+              tag: 'v1.6.0'
+            });
+            await github.rest.repos.deleteRelease({
+              owner: 'dorianskyfr',
+              repo: 'ai-local',
+              release_id: release.data.id
+            });
+          } catch (e) {}
+          
+          // Create new release
+          const newRelease = await github.rest.repos.createRelease({
+            owner: 'dorianskyfr',
+            repo: 'ai-local',
+            tag_name: 'v1.6.0',
+            name: 'AI Local v1.6.0',
+            body: body,
+            draft: false,
+            prerelease: false
+          });
+          
+          // Upload all files
+          function uploadFiles(dir, releaseId) {
+            const files = [];
+            try {
+              fs.readdirSync(dir).forEach(item => {
+                const fullPath = path.join(dir, item);
+                const stat = fs.statSync(fullPath);
+                if (stat.isDirectory()) {
+                  uploadFiles(fullPath, releaseId);
+                } else if (item.match(/\.(AppImage|deb|exe)$/i)) {
+                  const fileData = fs.readFileSync(fullPath);
+                  const fileName = path.basename(fullPath);
+                  console.log(`Uploading ${fileName}...`);
+                  github.rest.repos.uploadReleaseAsset({
+                    owner: 'dorianskyfr',
+                    repo: 'ai-local',
+                    release_id: releaseId,
+                    name: fileName,
+                    data: fileData,
+                    headers: {'content-type': 'application/octet-stream'}
+                  }).catch(e => console.error(`Failed ${fileName}:`, e.message));
+                }
+              });
+            } catch (e) {}
+          }
+          
+          uploadFiles('artifacts', newRelease.data.id);
+          console.log('✅ Release created with assets!');

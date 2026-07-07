@@ -3,7 +3,7 @@ name: Release v1.6.0 with Assets
 on:
   push:
     tags:
-      - 'v1.6.1'
+      - 'v1.6.0'
 
 jobs:
   build-and-release:
@@ -37,8 +37,8 @@ jobs:
     - name: Release with assets
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v1.6.1
-        name: AI Local v1.6.1
+        tag_name: v1.6.0
+        name: AI Local v1.6.0
         body_file: RELEASE-v1.6.0.md
         draft: false
         prerelease: false

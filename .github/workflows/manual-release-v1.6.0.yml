@@ -64,7 +64,8 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: List built files
-      run: ls -la dist/
+      run: dir dist\ || true
+      shell: cmd
 
     - name: Upload Windows artifacts
       uses: actions/upload-artifact@v4

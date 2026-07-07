@@ -29,9 +29,6 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: List built files
-      run: ls -la dist/
-
     - name: Upload Linux artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -63,10 +60,6 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: List built files
-      run: dir dist\ || true
-      shell: cmd
-
     - name: Upload Windows artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -84,9 +77,10 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         path: artifacts
+        merge-multiple: true
 
-    - name: List downloaded files
-      run: find artifacts -type f -name "*.AppImage" -o -name "*.deb" -o -name "*.exe" | xargs ls -la
+    - name: List all files
+      run: ls -R artifacts/ || true
 
     - name: Delete existing v1.6.0 release
       uses: actions/github-script@v7

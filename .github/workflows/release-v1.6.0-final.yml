@@ -1,0 +1,162 @@
+name: Release v1.6.0 Final
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Install electron-builder deps
+      run: sudo apt-get update && sudo apt-get install -y rpm fuse
+
+    - name: Build Linux
+      run: npm run dist:linux
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload Linux artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux-binaries
+        path: dist/
+        retention-days: 1
+
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Build Windows
+      run: npm run dist:win
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload Windows artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-binaries
+        path: dist/
+        retention-days: 1
+
+  release:
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        merge-multiple: true
+
+    - name: Create release and upload assets
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          
+          // Lire le body de la release
+          let body = '';
+          try {
+            body = fs.readFileSync('RELEASE-v1.6.0.md', 'utf8');
+          } catch (e) {
+            body = 'AI Local v1.6.0 - Collaborative Model System';
+          }
+          
+          // Supprimer l'ancienne release si elle existe
+          try {
+            const release = await github.rest.repos.getReleaseByTag({
+              owner: 'dorianskyfr',
+              repo: 'ai-local',
+              tag: 'v1.6.0'
+            });
+            await github.rest.repos.deleteRelease({
+              owner: 'dorianskyfr',
+              repo: 'ai-local',
+              release_id: release.data.id
+            });
+            console.log('✅ Old release deleted');
+          } catch (error) {
+            console.log('No old release to delete');
+          }
+          
+          // Créer la nouvelle release
+          const newRelease = await github.rest.repos.createRelease({
+            owner: 'dorianskyfr',
+            repo: 'ai-local',
+            tag_name: 'v1.6.0',
+            name: 'AI Local v1.6.0',
+            body: body,
+            draft: false,
+            prerelease: false
+          });
+          
+          console.log('✅ Release created:', newRelease.data.id);
+          
+          // Trouver et uploader tous les assets
+          const files = [];
+          function findFiles(dir) {
+            try {
+              const items = fs.readdirSync(dir);
+              for (const item of items) {
+                const fullPath = path.join(dir, item);
+                const stat = fs.statSync(fullPath);
+                if (stat.isDirectory()) {
+                  findFiles(fullPath);
+                } else if (item.match(/\.(AppImage|deb|exe)$/i)) {
+                  files.push(fullPath);
+                }
+              }
+            } catch (e) {}
+          }
+          findFiles('artifacts');
+          
+          console.log('Files to upload:', files);
+          
+          for (const filePath of files) {
+            const fileName = path.basename(filePath);
+            const fileData = fs.readFileSync(filePath);
+            console.log(`Uploading ${fileName} (${fileData.length} bytes)...`);
+            
+            try {
+              await github.rest.repos.uploadReleaseAsset({
+                owner: 'dorianskyfr',
+                repo: 'ai-local',
+                release_id: newRelease.data.id,
+                name: fileName,
+                data: fileData,
+                headers: {
+                  'content-type': 'application/octet-stream'
+                }
+              });
+              console.log(`✅ Uploaded ${fileName}`);
+            } catch (error) {
+              console.error(`❌ Failed to upload ${fileName}:`, error.message);
+            }
+          }
+          
+          console.log('✅ All done!');

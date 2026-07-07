@@ -1,0 +1,101 @@
+name: Simple Release v1.6.0
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Install electron-builder deps
+      run: sudo apt-get update && sudo apt-get install -y rpm fuse wine64
+
+    - name: Build Linux AppImage and DEB
+      run: npm run dist:linux
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: List Linux files
+      run: ls -la dist/
+
+    - name: Create release and upload Linux assets
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          
+          // Lire le body
+          let body = '';
+          try {
+            body = fs.readFileSync('RELEASE-v1.6.0.md', 'utf8');
+          } catch (e) {
+            body = 'AI Local v1.6.0 - Collaborative Model System';
+          }
+          
+          // Supprimer l'ancienne release
+          try {
+            const release = await github.rest.repos.getReleaseByTag({
+              owner: 'dorianskyfr',
+              repo: 'ai-local',
+              tag: 'v1.6.0'
+            });
+            await github.rest.repos.deleteRelease({
+              owner: 'dorianskyfr',
+              repo: 'ai-local',
+              release_id: release.data.id
+            });
+            console.log('✅ Old release deleted');
+          } catch (error) {
+            console.log('No old release');
+          }
+          
+          // Créer la release
+          const newRelease = await github.rest.repos.createRelease({
+            owner: 'dorianskyfr',
+            repo: 'ai-local',
+            tag_name: 'v1.6.0',
+            name: 'AI Local v1.6.0',
+            body: body,
+            draft: false,
+            prerelease: false
+          });
+          
+          console.log('✅ Release created:', newRelease.data.id);
+          
+          // Uploader les fichiers Linux
+          const files = fs.readdirSync('dist').filter(f => 
+            f.endsWith('.AppImage') || f.endsWith('.deb')
+          );
+          
+          for (const fileName of files) {
+            const filePath = path.join('dist', fileName);
+            const fileData = fs.readFileSync(filePath);
+            console.log(`Uploading ${fileName}...`);
+            
+            await github.rest.repos.uploadReleaseAsset({
+              owner: 'dorianskyfr',
+              repo: 'ai-local',
+              release_id: newRelease.data.id,
+              name: fileName,
+              data: fileData,
+              headers: {'content-type': 'application/octet-stream'}
+            });
+            console.log(`✅ Uploaded ${fileName}`);
+          }
+          
+          console.log('✅ Linux assets uploaded!');
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -103,11 +103,18 @@ const brain = new Brain();
 let globalModelStats = null;
 let lastGlobalSync = 0;
 
+// Définir les éléments du DOM AVANT de les utiliser
+const globalStatsEl = document.getElementById('global-model-stats');
+const globalSyncBtn = document.getElementById('global-sync-btn');
+const globalContribEl = document.getElementById('global-contrib-stats');
+
 // Synchroniser automatiquement au démarrage
 window.globalModel.sync().then(result => {
   if (result.ok) {
     console.log('Modèle global synchronisé au démarrage :', result.message);
-    updateGlobalStats();
+    if (typeof updateGlobalStats === 'function') {
+      updateGlobalStats();
+    }
   }
 }).catch(error => {
   console.error('Erreur de synchronisation initiale :', error);
@@ -145,7 +152,6 @@ const topicInputEl = document.getElementById('topic-input');
 const shareStatusEl = document.getElementById('share-status');
 const trainSpeedEl = document.getElementById('train-speed');
 const pcScanEl = document.getElementById('pc-scan');
-const tokenNoteEl = document.getElementById('token-note');
 const discordAppIdEl = document.getElementById('discord-appid');
 const discordSaveBtn = document.getElementById('discord-save');
 const discordStatusEl = document.getElementById('discord-status');
@@ -1058,11 +1064,6 @@ discordSaveBtn.addEventListener('click', () => {
 });
 
 /* ---------- Modèle Global v1.6 (panneau latéral) ---------- */
-
-// NOUVEAU SYSTÈME : Un seul modèle partagé par tous les utilisateurs
-const globalStatsEl = document.getElementById('global-model-stats');
-const globalSyncBtn = document.getElementById('global-sync-btn');
-const globalContribEl = document.getElementById('global-contrib-stats');
 
 /**
  * NOUVEAU : Met à jour l'affichage des statistiques du modèle global

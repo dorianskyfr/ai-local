@@ -3,6 +3,7 @@
   "productName": "AI Local",
   "version": "1.6.0",
   "description": "Application de chat avec un modèle d'IA local qui s'entraîne tout seul (texte, images, vidéos) - NOUVEAU : Un seul modèle partagé par TOUS les utilisateurs !",
+  "homepage": "https://github.com/dorianskyfr/ai-local",
   "main": "main.js",
   "author": "dorianskyfr",
   "license": "MIT",
@@ -17,7 +18,7 @@
   },
   "build": {
     "appId": "fr.dorianskyfr.ailocal",
-    "productName": "AI Local",
+    "productName": "AI-Local",
     "directories": {
       "output": "dist"
     },
@@ -44,8 +45,7 @@
             "x64"
           ]
         }
-      ],
-      "signingHashAlgorithms": []
+      ]
     },
     "nsis": {
       "oneClick": true,
@@ -78,7 +78,8 @@
       "artifactName": "AI-Local-${version}.AppImage"
     },
     "deb": {
-      "artifactName": "ai-local_${version}_amd64.deb"
+      "artifactName": "ai-local_${version}_amd64.deb",
+      "packageName": "ai-local"
     }
   },
   "dependencies": {}

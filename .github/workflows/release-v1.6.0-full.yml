@@ -1,0 +1,105 @@
+name: Release v1.6.0 Full (All Platforms)
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v1.6.0'
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Install electron-builder dependencies
+      run: sudo apt-get update && sudo apt-get install -y rpm fuse
+
+    - name: Build Linux AppImage and DEB
+      run: npm run dist:linux
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: List built files
+      run: ls -la dist/
+
+    - name: Upload Linux artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux-binaries
+        path: dist/
+        retention-days: 1
+
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Build Windows Portable and NSIS
+      run: npm run dist:win
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: List built files
+      run: ls -la dist/
+
+    - name: Upload Windows artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-binaries
+        path: dist/
+        retention-days: 1
+
+  create-release:
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        merge-multiple: true
+
+    - name: List all files
+      run: ls -laR artifacts/
+
+    - name: Create or update release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: v1.6.0
+        name: AI Local v1.6.0 — Modèle Global Unique
+        body_file: RELEASE-v1.6.0.md
+        draft: false
+        prerelease: false
+        files: |
+          artifacts/*.AppImage
+          artifacts/*.deb
+          artifacts/*.exe
+        fail_on_unmatched_files: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

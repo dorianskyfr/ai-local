@@ -103,22 +103,28 @@ const brain = new Brain();
 let globalModelStats = null;
 let lastGlobalSync = 0;
 
-// Définir les éléments du DOM AVANT de les utiliser
-const globalStatsEl = document.getElementById('global-model-stats');
-const globalSyncBtn = document.getElementById('global-sync-btn');
-const globalContribEl = document.getElementById('global-contrib-stats');
+// Attendre que le DOM soit chargé avant de récupérer les éléments
+let globalStatsEl = null;
+let globalSyncBtn = null;
+let globalContribEl = null;
 
-// Synchroniser automatiquement au démarrage
-window.globalModel.sync().then(result => {
-  if (result.ok) {
-    console.log('Modèle global synchronisé au démarrage :', result.message);
-    if (typeof updateGlobalStats === 'function') {
-      updateGlobalStats();
+// Synchroniser automatiquement au démarrage (sera appelé après le chargement du DOM)
+function initGlobalModel() {
+  globalStatsEl = document.getElementById('global-model-stats');
+  globalSyncBtn = document.getElementById('global-sync-btn');
+  globalContribEl = document.getElementById('global-contrib-stats');
+
+  window.globalModel.sync().then(result => {
+    if (result.ok) {
+      console.log('Modèle global synchronisé au démarrage :', result.message);
+      if (typeof updateGlobalStats === 'function') {
+        updateGlobalStats();
+      }
     }
-  }
-}).catch(error => {
-  console.error('Erreur de synchronisation initiale :', error);
-});
+  }).catch(error => {
+    console.error('Erreur de synchronisation initiale :', error);
+  });
+}
 if (!brain.load()) {
   brain.bootstrap();
   brain.save();
@@ -129,55 +135,183 @@ vision.load();
 
 /* ---------- Éléments ---------- */
 
-const tabChat = document.getElementById('tab-chat');
-const tabTraining = document.getElementById('tab-training');
-const tabGallery = document.getElementById('tab-gallery');
-const tabTrainingDot = document.getElementById('tab-training-dot');
-const viewChat = document.getElementById('view-chat');
-const viewTraining = document.getElementById('view-training');
-const viewGallery = document.getElementById('view-gallery');
+// Déclarer les éléments du DOM comme variables globales (seront initialisés après le chargement du DOM)
+let tabChat, tabTraining, tabGallery, tabTrainingDot;
+let viewChat, viewTraining, viewGallery;
+let messagesEl, composerEl, inputEl, sendBtn, newChatBtn, conversationListEl;
+let trainModeEl, trainSourceEl, sourceRowEl, topicInputEl;
+let shareStatusEl, trainSpeedEl, pcScanEl;
+let discordAppIdEl, discordSaveBtn, discordStatusEl;
+let trainStartBtn, trainStartLabel, trainFeedEl;
+let previewWrap, previewCanvas, galleryGridEl;
+let customCoresEl, customCoresValEl, customRamEl, customRamValEl;
+let customCoresRowEl, customRamRowEl, customSpeedNoteEl;
+let statEpochsEl, statVocabEl, statMemoriesEl, statSentencesEl, statGenerationsEl, confidenceFillEl;
+let milestoneTextEl, milestoneTextNameEl, milestoneImageEl, milestoneImageNameEl, scaleNoteEl;
 
-const messagesEl = document.getElementById('messages');
-const composerEl = document.getElementById('composer');
-const inputEl = document.getElementById('input');
-const sendBtn = document.getElementById('send-btn');
-const newChatBtn = document.getElementById('new-chat-btn');
-const conversationListEl = document.getElementById('conversation-list');
+// Initialiser tous les éléments du DOM (à appeler après le chargement du DOM)
+function initElements() {
+  tabChat = document.getElementById('tab-chat');
+  tabTraining = document.getElementById('tab-training');
+  tabGallery = document.getElementById('tab-gallery');
+  tabTrainingDot = document.getElementById('tab-training-dot');
+  viewChat = document.getElementById('view-chat');
+  viewTraining = document.getElementById('view-training');
+  viewGallery = document.getElementById('view-gallery');
 
-const trainModeEl = document.getElementById('train-mode');
-const trainSourceEl = document.getElementById('train-source');
-const sourceRowEl = document.getElementById('source-row');
-const topicInputEl = document.getElementById('topic-input');
-// NOUVEAU SYSTÈME v1.6 : Plus besoin de jeton GitHub pour le modèle global
-const shareStatusEl = document.getElementById('share-status');
-const trainSpeedEl = document.getElementById('train-speed');
-const pcScanEl = document.getElementById('pc-scan');
-const discordAppIdEl = document.getElementById('discord-appid');
-const discordSaveBtn = document.getElementById('discord-save');
-const discordStatusEl = document.getElementById('discord-status');
-const trainStartBtn = document.getElementById('train-start');
-const trainStartLabel = trainStartBtn.querySelector('.train-start-label');
-const trainFeedEl = document.getElementById('train-feed');
-const previewWrap = document.getElementById('preview-wrap');
-const previewCanvas = document.getElementById('train-preview');
-const galleryGridEl = document.getElementById('gallery-grid');
+  messagesEl = document.getElementById('messages');
+  composerEl = document.getElementById('composer');
+  inputEl = document.getElementById('input');
+  sendBtn = document.getElementById('send-btn');
+  newChatBtn = document.getElementById('new-chat-btn');
+  conversationListEl = document.getElementById('conversation-list');
+
+  trainModeEl = document.getElementById('train-mode');
+  trainSourceEl = document.getElementById('train-source');
+  sourceRowEl = document.getElementById('source-row');
+  topicInputEl = document.getElementById('topic-input');
+  shareStatusEl = document.getElementById('share-status');
+  trainSpeedEl = document.getElementById('train-speed');
+  pcScanEl = document.getElementById('pc-scan');
+  discordAppIdEl = document.getElementById('discord-appid');
+  discordSaveBtn = document.getElementById('discord-save');
+  discordStatusEl = document.getElementById('discord-status');
+  trainStartBtn = document.getElementById('train-start');
+  trainStartLabel = trainStartBtn ? trainStartBtn.querySelector('.train-start-label') : null;
+  trainFeedEl = document.getElementById('train-feed');
+  previewWrap = document.getElementById('preview-wrap');
+  previewCanvas = document.getElementById('train-preview');
+  galleryGridEl = document.getElementById('gallery-grid');
+
+  customCoresEl = document.getElementById('custom-cores');
+  customCoresValEl = document.getElementById('custom-cores-val');
+  customRamEl = document.getElementById('custom-ram');
+  customRamValEl = document.getElementById('custom-ram-val');
+  customCoresRowEl = document.getElementById('custom-cores-row');
+  customRamRowEl = document.getElementById('custom-ram-row');
+  customSpeedNoteEl = document.getElementById('custom-speed-note');
+
+  // Éléments pour les stats
+  statEpochsEl = document.getElementById('stat-epochs');
+  statVocabEl = document.getElementById('stat-vocab');
+  statMemoriesEl = document.getElementById('stat-memories');
+  statSentencesEl = document.getElementById('stat-sentences');
+  statGenerationsEl = document.getElementById('stat-generations');
+  confidenceFillEl = document.getElementById('confidence-fill');
+
+  // Éléments pour les milestones
+  milestoneTextEl = document.getElementById('milestone-text');
+  milestoneTextNameEl = document.getElementById('milestone-text-name');
+  milestoneImageEl = document.getElementById('milestone-image');
+  milestoneImageNameEl = document.getElementById('milestone-image-name');
+  scaleNoteEl = document.getElementById('scale-note');
+
+  // Configurer les écouteurs d'événements après que les éléments soient initialisés
+  setupEventListeners();
+}
 
 /* ---------- Onglets ---------- */
 
 function showTab(name) {
-  tabChat.classList.toggle('active', name === 'chat');
-  tabTraining.classList.toggle('active', name === 'training');
-  tabGallery.classList.toggle('active', name === 'gallery');
-  viewChat.hidden = name !== 'chat';
-  viewTraining.hidden = name !== 'training';
-  viewGallery.hidden = name !== 'gallery';
-  if (name === 'chat') inputEl.focus();
+  if (tabChat) tabChat.classList.toggle('active', name === 'chat');
+  if (tabTraining) tabTraining.classList.toggle('active', name === 'training');
+  if (tabGallery) tabGallery.classList.toggle('active', name === 'gallery');
+  if (viewChat) viewChat.hidden = name !== 'chat';
+  if (viewTraining) viewTraining.hidden = name !== 'training';
+  if (viewGallery) viewGallery.hidden = name !== 'gallery';
+  if (name === 'chat' && inputEl) inputEl.focus();
   if (name === 'gallery') renderGallery();
 }
 
-tabChat.addEventListener('click', () => showTab('chat'));
-tabTraining.addEventListener('click', () => showTab('training'));
-tabGallery.addEventListener('click', () => showTab('gallery'));
+/* ---------- Configuration des écouteurs d'événements ---------- */
+
+function setupEventListeners() {
+  // Onglets
+  if (tabChat) tabChat.addEventListener('click', () => showTab('chat'));
+  if (tabTraining) tabTraining.addEventListener('click', () => showTab('training'));
+  if (tabGallery) tabGallery.addEventListener('click', () => showTab('gallery'));
+
+  // Chat
+  if (composerEl) {
+    composerEl.addEventListener('submit', (e) => {
+      e.preventDefault();
+      handleSend();
+    });
+  }
+  if (inputEl) {
+    inputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSend();
+      }
+    });
+    inputEl.addEventListener('input', autoResize);
+  }
+  if (newChatBtn) {
+    newChatBtn.addEventListener('click', () => {
+      const conv = currentConv();
+      if (conv && !conv.messages.length) {
+        switchConversation(conv.id);
+        return;
+      }
+      createConversation();
+      saveConversations();
+      renderConversationList();
+      renderMessages();
+      showTab('chat');
+    });
+  }
+
+  // Entraînement
+  if (trainModeEl) {
+    trainModeEl.addEventListener('change', () => {
+      if (sourceRowEl) sourceRowEl.hidden = trainModeEl.value !== 'text';
+    });
+  }
+  if (trainSpeedEl) {
+    trainSpeedEl.addEventListener('change', applySpeedChange);
+  }
+  if (customCoresEl && customRamEl) {
+    let customSpeedDebounce = null;
+    for (const [el, key] of [[customCoresEl, CUSTOM_CORES_KEY], [customRamEl, CUSTOM_RAM_KEY]]) {
+      el.addEventListener('input', () => {
+        localStorage.setItem(key, el.value);
+        refreshCustomSpeed();
+        if (trainSpeedEl && trainSpeedEl.value !== 'custom') return;
+        clearTimeout(customSpeedDebounce);
+        customSpeedDebounce = setTimeout(() => {
+          restartTrainingInterval(`⚙ Vitesse personnalisée mise à jour : 1 cycle toutes les ${(SPEEDS.custom.text / 1000).toLocaleString('fr-FR')} s.`);
+        }, 300);
+      });
+    }
+  }
+  if (trainStartBtn) {
+    trainStartBtn.addEventListener('click', () => {
+      if (trainingTimer) stopTraining();
+      else startTraining();
+    });
+  }
+
+  // Discord
+  if (discordSaveBtn) {
+    discordSaveBtn.addEventListener('click', () => {
+      const id = discordAppIdEl ? discordAppIdEl.value.trim() : '';
+      localStorage.setItem(DISCORD_KEY, id);
+      if (id) {
+        if (discordStatusEl) discordStatusEl.textContent = '✓ Présence activée (Discord doit être ouvert sur ce PC).';
+        updatePresence('Discute avec son IA locale', appVersionLabel);
+      } else {
+        if (discordStatusEl) discordStatusEl.textContent = 'Présence désactivée.';
+        if (window.native && window.native.discordPresence) window.native.discordPresence({ clientId: '' });
+      }
+    });
+  }
+
+  // Modèle Global
+  if (globalSyncBtn) {
+    globalSyncBtn.addEventListener('click', handleGlobalSync);
+  }
+}
 
 /* ---------- Conversations persistantes ---------- */
 
@@ -263,6 +397,7 @@ function deleteConversation(id, event) {
 }
 
 function renderConversationList() {
+  if (!conversationListEl) return;
   conversationListEl.innerHTML = '';
   for (const conv of conversations) {
     const item = document.createElement('div');
@@ -300,12 +435,15 @@ function welcomeHtml() {
 }
 
 function clearWelcome() {
-  const welcome = messagesEl.querySelector('.welcome');
-  if (welcome) welcome.remove();
+  if (messagesEl) {
+    const welcome = messagesEl.querySelector('.welcome');
+    if (welcome) welcome.remove();
+  }
 }
 
 function makeMessage(role) {
   clearWelcome();
+  if (!messagesEl) return null;
   const wrap = document.createElement('div');
   wrap.className = `message ${role}`;
 
@@ -354,6 +492,7 @@ function renderVideoMessage(text, blobUrl) {
 }
 
 function renderMessages() {
+  if (!messagesEl) return;
   const conv = currentConv();
   messagesEl.innerHTML = '';
   if (!conv.messages.length) {
@@ -435,6 +574,7 @@ function addToGallery(subject, dataUrl) {
 }
 
 function renderGallery() {
+  if (!galleryGridEl) return;
   galleryGridEl.innerHTML = '';
   if (!gallery.length) {
     galleryGridEl.innerHTML = `<p class="feed-empty">Aucune image pour le moment —
@@ -478,7 +618,8 @@ function handleSend() {
   // Garde anti-réentrance : Entrée pendant qu'une réponse est en cours
   // déclenchait un second envoi concurrent (double indicateur de frappe,
   // générations LLM en collision).
-  if (sendBtn.disabled) return;
+  if (sendBtn && sendBtn.disabled) return;
+  if (!inputEl) return;
   const text = inputEl.value.trim();
   if (!text) return;
 
@@ -487,14 +628,14 @@ function handleSend() {
   renderTextMessage('user', text);
   pushMessage({ role: 'user', kind: 'text', text });
 
-  sendBtn.disabled = true;
+  if (sendBtn) sendBtn.disabled = true;
   const typing = addTypingIndicator();
   const done = () => {
     typing.remove();
     brain.save();
     updateStats();
-    sendBtn.disabled = false;
-    inputEl.focus();
+    if (sendBtn) sendBtn.disabled = false;
+    if (inputEl) inputEl.focus();
   };
 
   const wantsVideo = VIDEO_RE.test(text);
@@ -623,36 +764,12 @@ async function updateGlobalStats() {
   }
 }
 
-composerEl.addEventListener('submit', (e) => {
-  e.preventDefault();
-  handleSend();
-});
-
-inputEl.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    handleSend();
-  }
-});
-
 function autoResize() {
-  inputEl.style.height = 'auto';
-  inputEl.style.height = Math.min(inputEl.scrollHeight, 160) + 'px';
-}
-inputEl.addEventListener('input', autoResize);
-
-newChatBtn.addEventListener('click', () => {
-  const conv = currentConv();
-  if (conv && !conv.messages.length) {
-    switchConversation(conv.id);
-    return;
+  if (inputEl) {
+    inputEl.style.height = 'auto';
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 160) + 'px';
   }
-  createConversation();
-  saveConversations();
-  renderConversationList();
-  renderMessages();
-  showTab('chat');
-});
+}
 
 /* ---------- Centre d'entraînement ---------- */
 
@@ -661,6 +778,7 @@ let previewAnim = null;
 let trainingBusy = false;
 
 function feedEntry(text, kind = '') {
+  if (!trainFeedEl) return;
   const empty = trainFeedEl.querySelector('.feed-empty');
   if (empty) empty.remove();
   const entry = document.createElement('div');
@@ -671,27 +789,14 @@ function feedEntry(text, kind = '') {
 }
 
 function setTrainingUI(active) {
-  trainStartBtn.classList.toggle('active', active);
-  trainStartLabel.textContent = active ? "Arrêter l'entraînement" : "Lancer l'entraînement";
-  tabTrainingDot.hidden = !active;
-  trainModeEl.disabled = active;
-  trainSourceEl.disabled = active;
+  if (trainStartBtn) trainStartBtn.classList.toggle('active', active);
+  if (trainStartLabel) trainStartLabel.textContent = active ? "Arrêter l'entraînement" : "Lancer l'entraînement";
+  if (tabTrainingDot) tabTrainingDot.hidden = !active;
+  if (trainModeEl) trainModeEl.disabled = active;
+  if (trainSourceEl) trainSourceEl.disabled = active;
 }
 
-// Le choix de sources ne concerne que l'entraînement texte.
-trainModeEl.addEventListener('change', () => {
-  sourceRowEl.hidden = trainModeEl.value !== 'text';
-});
-
 /* ---------- Vitesse d'apprentissage (scan du PC + personnalisée) ---------- */
-
-const customCoresEl = document.getElementById('custom-cores');
-const customCoresValEl = document.getElementById('custom-cores-val');
-const customRamEl = document.getElementById('custom-ram');
-const customRamValEl = document.getElementById('custom-ram-val');
-const customCoresRowEl = document.getElementById('custom-cores-row');
-const customRamRowEl = document.getElementById('custom-ram-row');
-const customSpeedNoteEl = document.getElementById('custom-speed-note');
 
 for (const key in SPEEDS) {
   const opt = document.createElement('option');
@@ -742,29 +847,9 @@ function restartTrainingInterval(logMessage) {
 }
 
 function applySpeedChange() {
-  localStorage.setItem(SPEED_KEY, trainSpeedEl.value);
+  if (trainSpeedEl) localStorage.setItem(SPEED_KEY, trainSpeedEl.value);
   updateCustomRowVisibility();
   restartTrainingInterval(`⚙ Vitesse d'apprentissage réglée sur ${SPEEDS[currentSpeed()].label}.`);
-}
-
-trainSpeedEl.addEventListener('change', applySpeedChange);
-
-let customSpeedDebounce = null;
-
-for (const [el, key] of [[customCoresEl, CUSTOM_CORES_KEY], [customRamEl, CUSTOM_RAM_KEY]]) {
-  el.addEventListener('input', () => {
-    localStorage.setItem(key, el.value);
-    refreshCustomSpeed();
-    if (trainSpeedEl.value !== 'custom') return;
-    // Anti-rebond : glisser un curseur déclenche des dizaines d'événements
-    // « input ». Sans ça, chaque pixel de mouvement redémarrait le cycle
-    // d'entraînement et spammait le journal. On attend un court silence
-    // (300 ms) avant de recaler l'intervalle pour de vrai.
-    clearTimeout(customSpeedDebounce);
-    customSpeedDebounce = setTimeout(() => {
-      restartTrainingInterval(`⚙ Vitesse personnalisée mise à jour : 1 cycle toutes les ${(SPEEDS.custom.text / 1000).toLocaleString('fr-FR')} s.`);
-    }, 300);
-  });
 }
 
 async function textTrainingStep() {
@@ -878,9 +963,10 @@ function mediaTrainingStep() {
 }
 
 function startPreview(animated) {
+  if (!previewWrap || !previewCanvas) return;
   previewWrap.hidden = false;
   const ctx = previewCanvas.getContext('2d');
-  const subject = () => topicInputEl.value.trim() || 'entraînement libre';
+  const subject = () => (topicInputEl ? topicInputEl.value.trim() : '') || 'entraînement libre';
   if (animated) {
     const start = performance.now();
     const loop = () => {
@@ -901,10 +987,11 @@ function stopPreview() {
     clearInterval(previewAnim);
   }
   previewAnim = null;
-  previewWrap.hidden = true;
+  if (previewWrap) previewWrap.hidden = true;
 }
 
 function startTraining() {
+  if (!trainModeEl || !topicInputEl || !trainSourceEl) return;
   const mode = trainModeEl.value;
   const topic = topicInputEl.value.trim();
   setTrainingUI(true);
@@ -941,22 +1028,16 @@ function stopTraining() {
   updatePresence('Discute avec son IA locale', appVersionLabel);
 }
 
-trainStartBtn.addEventListener('click', () => {
-  if (trainingTimer) stopTraining();
-  else startTraining();
-});
-
 /* ---------- Statistiques ---------- */
 
 function updateStats() {
   const s = brain.getStats();
-  document.getElementById('stat-epochs').textContent = s.epochs;
-  document.getElementById('stat-vocab').textContent = s.vocabSize;
-  document.getElementById('stat-memories').textContent = s.memories;
-  document.getElementById('stat-sentences').textContent = s.sentencesLearned;
-  document.getElementById('stat-generations').textContent = vision.stats.generations;
-  document.getElementById('confidence-fill').style.width =
-    Math.min(100, Math.round(s.confidence * 100)) + '%';
+  if (statEpochsEl) statEpochsEl.textContent = s.epochs;
+  if (statVocabEl) statVocabEl.textContent = s.vocabSize;
+  if (statMemoriesEl) statMemoriesEl.textContent = s.memories;
+  if (statSentencesEl) statSentencesEl.textContent = s.sentencesLearned;
+  if (statGenerationsEl) statGenerationsEl.textContent = vision.stats.generations;
+  if (confidenceFillEl) confidenceFillEl.style.width = Math.min(100, Math.round(s.confidence * 100)) + '%';
   updateMilestones();
 }
 
@@ -980,9 +1061,9 @@ function renderMilestone(kind, milestone, badgeEl, nameEl, storageKey) {
 
 function updateMilestones() {
   renderMilestone('text', brain.getMilestone(),
-    document.getElementById('milestone-text'), document.getElementById('milestone-text-name'), MILESTONE_TEXT_KEY);
+    milestoneTextEl, milestoneTextNameEl, MILESTONE_TEXT_KEY);
   renderMilestone('image', vision.getMilestone(),
-    document.getElementById('milestone-image'), document.getElementById('milestone-image-name'), MILESTONE_IMAGE_KEY);
+    milestoneImageEl, milestoneImageNameEl, MILESTONE_IMAGE_KEY);
 
   // Taille réelle du modèle sur disque + échelle honnête. Comparer les
   // paliers à GPT ou Claude comme des égaux serait un mensonge affiché :
@@ -993,9 +1074,8 @@ function updateMilestones() {
   const size = bytes > 1048576
     ? (bytes / 1048576).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' Mo'
     : Math.max(1, Math.round(bytes / 1024)) + ' Ko';
-  const scaleEl = document.getElementById('scale-note');
-  if (scaleEl) {
-    scaleEl.textContent = `Taille du modèle : ${size} · ${brain.getStats().vocabSize.toLocaleString('fr-FR')} mots de vocabulaire. Échelle honnête : GPT-4 pèse ~3 000 000× plus — les paliers mesurent TA progression, pas une équivalence.`;
+  if (scaleNoteEl) {
+    scaleNoteEl.textContent = `Taille du modèle : ${size} · ${brain.getStats().vocabSize.toLocaleString('fr-FR')} mots de vocabulaire. Échelle honnête : GPT-4 pèse ~3 000 000× plus — les paliers mesurent TA progression, pas une équivalence.`;
   }
 }
 
@@ -1017,12 +1097,6 @@ async function updateShareStatus() {
     setShareStatus('Modèle Global : synchronisation en cours…');
   }
 }
-
-// Mettre à jour automatiquement
-updateShareStatus();
-setInterval(updateShareStatus, 30000);
-
-refreshTokenUI();
 
 /* ---------- Discord Rich Presence ---------- */
 
@@ -1158,12 +1232,31 @@ if (window.globalModel) {
 
 /* ---------- Démarrage ---------- */
 
-// NOUVEAU SYSTÈME v1.6 : Plus de LLM, on utilise le modèle global
-refreshGlobalModelPanel();
-loadConversations();
-loadGallery();
-renderConversationList();
-renderMessages();
-updateStats();
-updatePresence('Discute avec son IA locale v1.6', appVersionLabel);
-inputEl.focus();
+// Initialiser le modèle global (doit être appelé après le chargement du DOM)
+// On attend que le DOM soit prêt avant d'appeler initGlobalModel
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    initElements();
+    initGlobalModel();
+    refreshGlobalModelPanel();
+    loadConversations();
+    loadGallery();
+    renderConversationList();
+    renderMessages();
+    updateStats();
+    updatePresence('Discute avec son IA locale v1.6', appVersionLabel);
+    inputEl.focus();
+  });
+} else {
+  // DOM déjà chargé
+  initElements();
+  initGlobalModel();
+  refreshGlobalModelPanel();
+  loadConversations();
+  loadGallery();
+  renderConversationList();
+  renderMessages();
+  updateStats();
+  updatePresence('Discute avec son IA locale v1.6', appVersionLabel);
+  inputEl.focus();
+}

@@ -1,4 +1,4 @@
-name: Build All Platforms v1.6.0
+name: Manual Build v1.6.0 - Final
 
 on:
   workflow_dispatch:
@@ -16,14 +16,14 @@ jobs:
       with:
         node-version: '20'
 
-    - name: Install deps
+    - name: Install npm deps
       run: npm install
 
-    - name: Install builder deps
-      run: sudo apt-get update && sudo apt-get install -y rpm fuse libx11-xcb1 libxcomposite1 libxcursor1 libxdamage1 libxi6 libxtst6 libnss3 libcups2 libxss1 libxrandr2 libasound2 libatk1.0-0 libatk-bridge2.0-0 libgtk-3-0
+    - name: Install system deps
+      run: sudo apt-get update && sudo apt-get install -y rpm fuse
 
     - name: Build Linux
-      run: npm run dist:linux
+      run: npx electron-builder --linux --x64 --publish never
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -46,11 +46,11 @@ jobs:
       with:
         node-version: '20'
 
-    - name: Install deps
+    - name: Install npm deps
       run: npm install
 
     - name: Build Windows
-      run: npm run dist:win
+      run: npx electron-builder --win --x64 --publish never
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -61,7 +61,7 @@ jobs:
         path: dist/
         retention-days: 7
 
-  create-release:
+  release:
     needs: [build-linux, build-windows]
     runs-on: ubuntu-latest
     
@@ -86,7 +86,6 @@ jobs:
             body = 'AI Local v1.6.0';
           }
           
-          // Delete old release
           try {
             const release = await github.rest.repos.getReleaseByTag({
               owner: 'dorianskyfr',
@@ -100,7 +99,6 @@ jobs:
             });
           } catch (e) {}
           
-          // Create new release
           const newRelease = await github.rest.repos.createRelease({
             owner: 'dorianskyfr',
             repo: 'ai-local',
@@ -111,7 +109,6 @@ jobs:
             prerelease: false
           });
           
-          // Upload all files
           function uploadFiles(dir, releaseId) {
             const files = [];
             try {

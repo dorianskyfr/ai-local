@@ -2,6 +2,12 @@ name: Build All Platforms v1.6.0
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'package.json'
+      - '.github/workflows/build-all-platforms.yml'
 
 jobs:
   build-linux:

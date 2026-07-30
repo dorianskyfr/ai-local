@@ -15,9 +15,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'package.json'
-      - '.github/workflows/build-v1.6.0-complete.yml'
 
 jobs:
   build-linux:
@@ -86,7 +83,6 @@ jobs:
   create-release:
     needs: [build-linux, build-windows]
     runs-on: ubuntu-latest
-    if: ${{ inputs.create-release == 'true' || github.event_name == 'push' }}
     
     steps:
     - name: Download all artifacts
@@ -106,6 +102,12 @@ jobs:
           const path = require('path');
           
           const version = '${{ inputs.version || "1.6.0" }}';
+          const createRelease = '${{ inputs.create-release || "true" }}' === 'true';
+          
+          if (!createRelease) {
+            console.log('Skipping release creation (create-release=false)');
+            return;
+          }
           
           // Lire le body de la release
           let body = '';

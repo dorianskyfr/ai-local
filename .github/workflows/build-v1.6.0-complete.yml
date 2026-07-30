@@ -12,6 +12,12 @@ on:
         required: true
         default: 'true'
         type: boolean
+  push:
+    branches:
+      - main
+    paths:
+      - 'package.json'
+      - '.github/workflows/build-v1.6.0-complete.yml'
 
 jobs:
   build-linux:
@@ -80,7 +86,7 @@ jobs:
   create-release:
     needs: [build-linux, build-windows]
     runs-on: ubuntu-latest
-    if: ${{ inputs.create-release == 'true' }}
+    if: ${{ inputs.create-release == 'true' || github.event_name == 'push' }}
     
     steps:
     - name: Download all artifacts
@@ -90,7 +96,7 @@ jobs:
         merge-multiple: true
 
     - name: List all artifacts
-      run: find artifacts -type f -name "*.AppImage" -o -name "*.deb" -o -name "*.exe" | sort
+      run: find artifacts -type f \( -name "*.AppImage" -o -name "*.deb" -o -name "*.exe" \) | sort
 
     - name: Create release and upload assets
       uses: actions/github-script@v7
@@ -99,7 +105,7 @@ jobs:
           const fs = require('fs');
           const path = require('path');
           
-          const version = '${{ inputs.version }}';
+          const version = '${{ inputs.version || "1.6.0" }}';
           
           // Lire le body de la release
           let body = '';

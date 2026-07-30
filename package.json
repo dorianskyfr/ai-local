@@ -2,15 +2,17 @@
   "name": "ai-local",
   "productName": "AI Local",
   "version": "1.6.0",
-  "description": "Application de chat avec un modèle d'IA local qui s'entraîne tout seul (texte, images, vidéos) - NOUVEAU : Un seul modèle partagé par TOUS les utilisateurs !",
+  "description": "Application de chat avec un mod\u00e8le d'IA local qui s'entra\u0000ene tout seul (texte, images, vid\u0019os) - NOUVEAU : Un seul mod\u00e8le partag\u0019 par TOUS les utilisateurs !",
   "homepage": "https://github.com/dorianskyfr/ai-local",
   "main": "main.js",
   "author": "dorianskyfr",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
+    "dist": "electron-builder --x64 --publish never",
     "dist:win": "electron-builder --win --x64 --publish never",
-    "dist:linux": "electron-builder --linux --x64 --publish never"
+    "dist:linux": "electron-builder --linux --x64 --publish never",
+    "dist:all": "electron-builder --win --linux --x64 --publish never"
   },
   "devDependencies": {
     "electron": "^31.0.0",
@@ -50,7 +52,8 @@
     "nsis": {
       "oneClick": true,
       "perMachine": false,
-      "deleteAppDataOnUninstall": false
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "AI-Local-Setup-${version}.exe"
     },
     "portable": {
       "artifactName": "AI-Local-${version}-portable.exe"
@@ -72,7 +75,7 @@
       ],
       "category": "Utility",
       "maintainer": "dorianskyfr <211799238+dorianskyfr@users.noreply.github.com>",
-      "synopsis": "Chat IA 100 % local avec modèle unique partagé - v1.6"
+      "synopsis": "Chat IA 100 % local avec mod\u00e8le unique partag\u0019 - v1.6"
     },
     "appImage": {
       "artifactName": "AI-Local-${version}.AppImage"

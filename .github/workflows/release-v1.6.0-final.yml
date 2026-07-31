@@ -32,6 +32,7 @@ jobs:
 
     - name: Upload Linux artifacts
       uses: actions/upload-artifact@v4
+      if: always()
       with:
         name: linux-binaries
         path: dist/
@@ -59,6 +60,7 @@ jobs:
 
     - name: Upload Windows artifacts
       uses: actions/upload-artifact@v4
+      if: always()
       with:
         name: windows-binaries
         path: dist/
@@ -67,6 +69,7 @@ jobs:
   release:
     needs: [build-linux, build-windows]
     runs-on: ubuntu-latest
+    if: always()
     
     steps:
     - name: Download all artifacts
@@ -139,6 +142,11 @@ jobs:
           findFiles('artifacts');
           
           console.log('Files to upload:', files);
+          
+          if (files.length === 0) {
+            console.log('⚠️ No files to upload');
+            return;
+          }
           
           for (const filePath of files) {
             const fileName = path.basename(filePath);

@@ -2,6 +2,9 @@ name: Release v1.6.0 Final
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   build-linux:

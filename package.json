@@ -11,7 +11,7 @@
     "start": "electron .",
     "dist": "electron-builder --x64 --publish never",
     "dist:win": "electron-builder --win --x64 --publish never",
-    "dist:linux": "electron-builder --linux --x64 --publish never",
+    "dist:linux": "electron-builder --linux AppImage --x64 --publish never",
     "dist:all": "electron-builder --win --linux --x64 --publish never"
   },
   "devDependencies": {
@@ -65,12 +65,6 @@
           "arch": [
             "x64"
           ]
-        },
-        {
-          "target": "deb",
-          "arch": [
-            "x64"
-          ]
         }
       ],
       "category": "Utility",
@@ -79,10 +73,6 @@
     },
     "appImage": {
       "artifactName": "AI-Local-${version}.AppImage"
-    },
-    "deb": {
-      "artifactName": "ai-local_${version}_amd64.deb",
-      "packageName": "ai-local"
     }
   },
   "dependencies": {}

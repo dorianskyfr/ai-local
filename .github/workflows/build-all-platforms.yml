@@ -25,8 +25,13 @@ jobs:
     - name: Install electron-builder deps
       run: sudo apt-get update && sudo apt-get install -y rpm fuse
 
-    - name: Build Linux
-      run: npm run dist:linux
+    - name: Build Linux AppImage
+      run: npx electron-builder build --linux AppImage x64 --publish never
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build Linux DEB
+      run: npx electron-builder build --linux deb x64 --publish never
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -52,8 +57,13 @@ jobs:
     - name: Install dependencies
       run: npm install
 
-    - name: Build Windows
-      run: npm run dist:win
+    - name: Build Windows Portable
+      run: npx electron-builder build --win portable x64 --publish never
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build Windows NSIS
+      run: npx electron-builder build --win nsis x64 --publish never
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -82,7 +92,6 @@ jobs:
           const fs = require('fs');
           const path = require('path');
           
-          // Lire le body de la release
           let body = '';
           try {
             body = fs.readFileSync('RELEASE-v1.6.0.md', 'utf8');
@@ -90,7 +99,6 @@ jobs:
             body = 'AI Local v1.6.0 - Collaborative Model System';
           }
           
-          // Supprimer l'ancienne release si elle existe
           try {
             const release = await github.rest.repos.getReleaseByTag({
               owner: 'dorianskyfr',
@@ -107,7 +115,6 @@ jobs:
             console.log('No old release to delete');
           }
           
-          // Créer la nouvelle release
           const newRelease = await github.rest.repos.createRelease({
             owner: 'dorianskyfr',
             repo: 'ai-local',
@@ -120,7 +127,6 @@ jobs:
           
           console.log('✅ Release created:', newRelease.data.id);
           
-          // Trouver et uploader tous les assets
           const files = [];
           function findFiles(dir) {
             try {

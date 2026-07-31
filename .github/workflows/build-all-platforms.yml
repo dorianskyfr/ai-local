@@ -24,8 +24,13 @@ jobs:
     - name: Install builder deps
       run: sudo apt-get update && sudo apt-get install -y rpm fuse
 
-    - name: Build Linux
-      run: npm run dist:linux
+    - name: Build Linux - AppImage
+      run: npx electron-builder --linux AppImage --x64 --publish never
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build Linux - DEB
+      run: npx electron-builder --linux deb --x64 --publish never
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -51,8 +56,13 @@ jobs:
     - name: Install deps
       run: npm install
 
-    - name: Build Windows
-      run: npm run dist:win
+    - name: Build Windows - Portable
+      run: npx electron-builder --win portable --x64 --publish never
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build Windows - NSIS
+      run: npx electron-builder --win nsis --x64 --publish never
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -73,6 +83,9 @@ jobs:
       with:
         path: artifacts
         merge-multiple: true
+
+    - name: List artifacts
+      run: find artifacts -type f \( -name "*.AppImage" -o -name "*.deb" -o -name "*.exe" \)
 
     - name: Create release
       uses: actions/github-script@v7
